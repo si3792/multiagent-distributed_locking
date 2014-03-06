@@ -23,33 +23,60 @@
 #include <fipa_acl/fipa_acl.h>
 #include <distributed_locking/Agent.hpp>
 
+/** \mainpage Distributed Locking Mechanism
+ *  This library provides an interface for a locking mechanism on distributed systems. This interface is given by the abstract class DLM.
+ * 
+ * Currently, the Ricart Agrawala algorithm ( http://en.wikipedia.org/wiki/Ricart-Agrawala_algorithm ) is the only implementation of that interface.
+ */
+
 namespace fipa {
 namespace distributed_locking {
+  /**
+   * A distributed locking mechanism. This class is abstract.
+   */
   class DLM
   {
   public:
-    // Default constructor
+    /**
+     * Default constructor
+     */
     DLM();
-    // Constructor
+    /**
+     * Constructor
+     */
     DLM(Agent self, std::vector<Agent> agents);
     
-    // Adds an agent to the list
+    /**
+     * Adds an agent to the list. Must not be called more than once with the same agent.
+     */
     void addAgent(Agent agent);
     
-    // Sets self
+    /**
+     * Sets the agent this DLM works with.
+     */
     void setSelf(Agent self);
     
-    // Gets the outgoing messages. Used by the Orogen task.
+    /**
+     * Gets the outgoing messages. Used by the Orogen task.
+     */
     std::vector<fipa::acl::ACLMessage>& getOutgoingMessages();
     
-    // Tries to locks a resource. Subsequently, isLocked() must be called to check the status.
+    /**
+     * Tries to lock a resource. Subsequently, isLocked() must be called to check the status.
+     */
     virtual void lock(const std::string& resource) = 0;
-    // Unlocks a resource, that must have been locked before
+    /**
+     * Unlocks a resource, that should have been locked before.
+     */
     virtual void unlock(const std::string& resource) = 0;
-    // Checks if the lock for a given resource is held
+    /**
+     * Checks if the lock for a given resource is held.
+     */
     virtual bool isLocked(const std::string& resource) = 0;
     
-    // This message is triggered by the wrapping Orogen task, if a message is received
+    /**
+     * This message is triggered by the wrapping Orogen task, if a message is received. Sequential calls must be guaranteed.
+     */
     virtual void onIncomingMessage(const fipa::acl::ACLMessage& message) = 0;
     
     

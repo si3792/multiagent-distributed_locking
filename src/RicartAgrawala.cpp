@@ -36,6 +36,12 @@ RicartAgrawala::RicartAgrawala(Agent self, std::vector<Agent> agents) : DLM(self
 
 void RicartAgrawala::lock(const std::string& resource)
 {
+  // Only act we are not holding this resource and not already interested in it
+  if(isLocked(resource) || interests.count(resource) != 0)
+  {
+    return;
+  }
+  
   using namespace fipa::acl;
   // Send a message to everyone, requesting the lock
   ACLMessage message;
@@ -73,8 +79,14 @@ void RicartAgrawala::lock(const std::string& resource)
 
 void RicartAgrawala::unlock(const std::string& resource)
 {
+  // Only act we are actually holding this resource
+  if(isLocked(resource))
+  {
+    // Remove from heldResources
+  heldResources.remove(resource);
   // Send all deferred messages for that resource
   sendAllDeferredMessages(resource);
+  }
 }
 
 bool RicartAgrawala::isLocked(const std::string& resource)
@@ -99,19 +111,17 @@ void RicartAgrawala::onIncomingMessage(const fipa::acl::ACLMessage& message)
 
 void RicartAgrawala::handleIncomingRequest(const fipa::acl::ACLMessage& message)
 {
-  using namespace fipa::acl;
-  
   base::Time otherTime;
   std::string resource;
   extractInformation(message, otherTime, resource);  
   
   // Create a response
-  ACLMessage response;
+  fipa::acl::ACLMessage response;
   // An inform we're not interested in or done using the resource
-  response.setPerformative(ACLMessage::INFORM);
+  response.setPerformative(fipa::acl::ACLMessage::INFORM);
   
   // Add sender and receiver
-  response.setSender(AgentID(self.identifier));
+  response.setSender(fipa::acl::AgentID(self.identifier));
   response.addReceiver(message.getSender());
   
   // Keep the conversation ID
@@ -137,7 +147,6 @@ void RicartAgrawala::handleIncomingRequest(const fipa::acl::ACLMessage& message)
 
 void RicartAgrawala::handleIncomingResponse(const fipa::acl::ACLMessage& message)
 {
-  using namespace fipa::acl;
   // If we get a response, that likely means, we are interested in a resource
   base::Time otherTime;
   std::string resource;
@@ -149,7 +158,16 @@ void RicartAgrawala::handleIncomingResponse(const fipa::acl::ACLMessage& message
     return;
   }
   
-  // TODO
+  // Increase the number of responses for that resource
+  numberOfResponses[resource]++;
+  // We have got the lock, if all agents responded
+  // XXX this does not work if agents have been added afterwards and got no request message
+  if(numberOfResponses[resource] == agents.size())
+  {
+    numberOfResponses[resource] = 0;
+    interests.erase(resource);
+    heldResources.push_back(resource);
+  }
 }
 
 void RicartAgrawala::extractInformation(const fipa::acl::ACLMessage& message, base::Time& time, std::string& resource)
@@ -163,16 +181,16 @@ void RicartAgrawala::extractInformation(const fipa::acl::ACLMessage& message, ba
   {
     throw std::runtime_error("DLM::extractInformation ACLMessage content malformed");
   }
-  
+  // Save the extracted information in the references
   time = base::Time::fromString(strs[0]);
   resource = strs[1];
 }
 
 void RicartAgrawala::sendAllDeferredMessages(const std::string& resource)
 {
-  for(unsigned int i = 0; i < deferredMessages.size(); i++)
+  for(std::list<fipa::acl::ACLMessage>::iterator it = deferredMessages.begin(); it != deferredMessages.end(); it++)
   {
-    fipa::acl::ACLMessage msg = deferredMessages[i];
+    fipa::acl::ACLMessage msg = *it;
     if(msg.getContent() != resource)
     {
       // Ignore deferred messages for other resources
@@ -180,9 +198,9 @@ void RicartAgrawala::sendAllDeferredMessages(const std::string& resource)
     }
     // Include timestamp
     msg.setContent(base::Time::now().toString() +"\n" + msg.getContent());
-    // Remove from deferredMessages, decrement i and add to outgoingMessages
-    deferredMessages.erase(deferredMessages.begin() + i);
-    i--;
+    // Remove from deferredMessages, decrement it and add to outgoingMessages
+    deferredMessages.erase(it);
+    it--;
     outgoingMessages.push_back(msg);
   }
 }

@@ -29,13 +29,17 @@ namespace fipa {
     // Identifier of the agent
     std::string identifier;
     
-    // Default Constructor -- required
+    /**
+     * Default Constructor -- required
+     */
     Agent()
 	    : identifier()
     {   
     }   
 
-    // Constrctor with identifier
+    /**
+     * Constrctor with identifier
+     */
     Agent(const std::string& identifier)
 	    : identifier(identifier)
     {   
