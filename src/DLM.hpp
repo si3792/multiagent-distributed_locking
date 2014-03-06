@@ -15,19 +15,16 @@
  *
  */
 
-#ifndef _RICART_AGRAWALA_DLM_HPP_
-#define _RICART_AGRAWALA_DLM_HPP_
+#ifndef _DISTRIBUTED_LOCKING_DLM_HPP_
+#define _DISTRIBUTED_LOCKING_DLM_HPP_
 
 #include <vector>
-#include <map>
 
 #include <fipa_acl/fipa_acl.h>
-#include <ricart_agrawala/Agent.hpp>
+#include <distributed_locking/Agent.hpp>
 
-// TODO switch from vector to set where possible
-
-namespace ricart_agrawala
-{
+namespace fipa {
+namespace distributed_locking {
   class DLM
   {
   public:
@@ -42,44 +39,31 @@ namespace ricart_agrawala
     // Sets self
     void setSelf(Agent self);
     
-    // Locks a resource, blocking until access is granted
-    void lock(const std::string& resource);
-    // Unlocks a resource, that must have been locked before
-    void unlock(std::string resource);
-    
-    // This message is triggered by the wrapping Orogen task, if a message is received
-    void onIncomingMessage(fipa::acl::ACLMessage message);
-    
     // Gets the outgoing messages. Used by the Orogen task.
     std::vector<fipa::acl::ACLMessage>& getOutgoingMessages();
     
-  private:
-    // The agent represented by this DLM
-    Agent self;
-    // The agents to communicate with, excluding self
-    std::vector<Agent> agents;
+    // Tries to locks a resource. Subsequently, isLocked() must be called to check the status.
+    virtual void lock(const std::string& resource) = 0;
+    // Unlocks a resource, that must have been locked before
+    virtual void unlock(const std::string& resource) = 0;
+    // Checks if the lock for a given resource is held
+    virtual bool isLocked(const std::string& resource) = 0;
     
-    // List of outgoing messages. The Orogen task checks in intervals and forwards the messages.
-    std::vector<fipa::acl::ACLMessage> outgoingMessages;
-    // Messages to be sent later, by leaving the associated critical resource
-    std::vector<fipa::acl::ACLMessage> deferredMessages;
-    // Current number for conversation IDs
-    int conversationIDnum;
-    // All current interests mapped to the time where the message request was created
-    std::map<std::string, base::Time> interests;
-    // All critical resources held at the moment
-    std::vector<std::string> heldResources;
+    // This message is triggered by the wrapping Orogen task, if a message is received
+    virtual void onIncomingMessage(const fipa::acl::ACLMessage& message) = 0;
     
-    // Handles an incoming request
-    void handleIncomingRequest(fipa::acl::ACLMessage message);
-    // Handles an incoming response
-    void handleIncomingResponse(fipa::acl::ACLMessage message);
-    // Extracts the information from the content and saves it in the passed references
-    void extractInformation(fipa::acl::ACLMessage message, base::Time& time, std::string& resource);
-    // Sends all deferred messages for a certain resource by putting them into outgoingMessages
-    void sendAllDeferredMessages(std::string resource);
+    
+    protected:
+      // The agent represented by this DLM
+      Agent self;
+      // The agents to communicate with, excluding self
+      std::vector<Agent> agents;
+      
+      // List of outgoing messages. The Orogen task checks in intervals and forwards the messages.
+      std::vector<fipa::acl::ACLMessage> outgoingMessages;
   };
-}
+  
+} // namespace distributed_locking
+} // namespace fipa
 
-
-#endif // _RICART_AGRAWALA_DLM_HPP_
+#endif // _DISTRIBUTED_LOCKING_DLM_HPP_

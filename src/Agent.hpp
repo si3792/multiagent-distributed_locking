@@ -15,13 +15,12 @@
  *
  */
 
-#ifndef _RICART_AGRAWALA_AGENT_HPP_
-#define _RICART_AGRAWALA_AGENT_HPP_
+#ifndef _DISTRIBUTED_LOCKING_AGENT_HPP_
+#define _DISTRIBUTED_LOCKING_AGENT_HPP_
 
 #include <string>
 
-namespace ricart_agrawala
-{
+namespace fipa {
   /**
    * Very basic agent for mutual exclusion on a distributed system. It only contains an identifier.
    */
@@ -42,8 +41,8 @@ namespace ricart_agrawala
     {   
     } 
   };
-}
+} // namespace fipa
 
 
 
-#endif // _RICART_AGRAWALA_AGENT_HPP_
+#endif // _DISTRIBUTED_LOCKING_AGENT_HPP_
