@@ -1,3 +1,3 @@
 rock_testsuite(test_suite suite.cpp
-   test_Dummy.cpp
-   DEPS ricart_agrawala)
+  test_DLM.cpp
+  DEPS ricart_agrawala)

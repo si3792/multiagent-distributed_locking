@@ -16,6 +16,4 @@
   -->
   <depend package="base/types" />
   <depend package="multiagent/fipa_acl" />
-  <depend package="multiagent/fipa_services" />
-  <depend package="multiagent/orogen/fipa_services" />
 </package>
