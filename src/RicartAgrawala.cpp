@@ -26,29 +26,12 @@
 namespace fipa {
 namespace distributed_locking {
 
-RicartAgrawala::RicartAgrawala()
+RicartAgrawala::RicartAgrawala() : DLM()
 {
 }
 
-RicartAgrawala::RicartAgrawala(Agent self, std::vector<Agent> agents)
-  : self(self)
-  , agents(agents)
+RicartAgrawala::RicartAgrawala(Agent self, std::vector<Agent> agents) : DLM(self, agents)
 {
-}
-
-void RicartAgrawala::addAgent(Agent agent)
-{
-  agents.push_back(agent);
-}
-
-void RicartAgrawala::setSelf(Agent self)
-{
-  this->self = self;
-}
-
-std::vector<fipa::acl::ACLMessage>& RicartAgrawala::getOutgoingMessages()
-{
-  return outgoingMessages;
 }
 
 void RicartAgrawala::lock(const std::string& resource)
