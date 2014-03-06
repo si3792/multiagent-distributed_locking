@@ -43,18 +43,6 @@ namespace distributed_locking {
      */
     RicartAgrawala(Agent self, std::vector<Agent> agents);
     
-  private:
-    // Messages to be sent later, by leaving the associated critical resource
-    std::list<fipa::acl::ACLMessage> deferredMessages;
-    // Current number for conversation IDs
-    int conversationIDnum;
-    // All current interests mapped to the time where the message request was created
-    std::map<std::string, base::Time> interests;
-    // The number of responses for each resource. If it reaches the number of agents, we can enter the critical resource
-    std::map<std::string, unsigned int> numberOfResponses;
-    // All critical resources held at the moment
-    std::list<std::string> heldResources;
-    
     /**
      * Tries to lock a resource. Subsequently, isLocked() must be called to check the status.
      */
@@ -67,11 +55,22 @@ namespace distributed_locking {
      * Checks if the lock for a given resource is held
      */
     virtual bool isLocked(const std::string& resource);
-    
     /**
      * This message is triggered by the wrapping Orogen task, if a message is received
      */
     virtual void onIncomingMessage(const fipa::acl::ACLMessage& message);
+    
+  private:
+    // Messages to be sent later, by leaving the associated critical resource
+    std::list<fipa::acl::ACLMessage> deferredMessages;
+    // Current number for conversation IDs
+    int conversationIDnum;
+    // All current interests mapped to the time where the message request was created
+    std::map<std::string, base::Time> interests;
+    // The number of responses for each resource. If it reaches the number of agents, we can enter the critical resource
+    std::map<std::string, unsigned int> numberOfResponses;
+    // All critical resources held at the moment
+    std::list<std::string> heldResources;
     
     /**
      * Handles an incoming request
