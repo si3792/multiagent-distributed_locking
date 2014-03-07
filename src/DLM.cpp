@@ -23,12 +23,20 @@ void DLM::setSelf(Agent self)
     mSelf = self;
 }
 
-fipa::acl::ACLMessage& DLM::popNextOutgoingMessage()
+fipa::acl::ACLMessage DLM::popNextOutgoingMessage()
 {
-    // TODO return sth else if empty
-    fipa::acl::ACLMessage& msg = mOutgoingMessages.front();
+    if(!hasOutgoingMessages())
+    {
+        throw std::runtime_error("DLM::popNextOutgoingMessage no messages");
+    }
+    fipa::acl::ACLMessage msg = mOutgoingMessages.front();
     mOutgoingMessages.pop_front();
     return msg;
+}
+
+bool DLM::hasOutgoingMessages()
+{
+    return mOutgoingMessages.size() != 0;
 }
 
 } // namespace distributed_locking

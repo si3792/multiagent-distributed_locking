@@ -1,13 +1,14 @@
 #ifndef DISTRIBUTED_LOCKING_RICARD_AGRAWALA_HPP
 #define DISTRIBUTED_LOCKING_RICARD_AGRAWALA_HPP
 
+#include "DLM.hpp"
+#include "Agent.hpp"
+#include <fipa_acl/fipa_acl.h>
+
 #include <vector>
 #include <list>
 #include <map>
 
-#include <fipa_acl/fipa_acl.h>
-#include <distributed_locking/DLM.hpp>
-#include <distributed_locking/Agent.hpp>
 
 namespace fipa {
 namespace distributed_locking {

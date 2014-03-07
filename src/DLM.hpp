@@ -2,12 +2,13 @@
 #ifndef DISTRIBUTED_LOCKING_DLM_HPP
 #define DISTRIBUTED_LOCKING_DLM_HPP
 
+#include "Agent.hpp"
+#include <fipa_acl/fipa_acl.h>
+
 #include <vector>
 #include <list>
 #include <stdexcept>
 
-#include <fipa_acl/fipa_acl.h>
-#include <distributed_locking/Agent.hpp>
 
 /** \mainpage Distributed Locking Mechanism
  *  This library provides an interface for a locking mechanism on distributed systems. This interface is given by the abstract class DLM.
@@ -42,10 +43,16 @@ public:
      */
     void setSelf(Agent self);
 
+    // TODO I think here I cannot use const ref, since the Message will be destroyed and then we have an undefinded ref.
     /**
      * Gets the next outgoing message, and removes it from the internal queue. Used by the higher instance that uses this library.
+     * Must only be called if hasOutgoingMessages == true.
      */
-    fipa::acl::ACLMessage& popNextOutgoingMessage();
+    fipa::acl::ACLMessage popNextOutgoingMessage();
+    /**
+     * True, if there are outgoing messages than can be obtained with popNextOutgoingMessage.
+     */
+    bool hasOutgoingMessages();
 
     /**
      * Tries to lock a resource. Subsequently, isLocked() must be called to check the status.
