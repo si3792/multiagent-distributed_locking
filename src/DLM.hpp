@@ -91,7 +91,7 @@ protected:
     // The agents to communicate with, excluding self
     std::vector<Agent> mAgents;
 
-    // List of outgoing messages. The Orogen task checks in intervals and forwards the messages.
+    // List of outgoing messages.
     std::list<fipa::acl::ACLMessage> mOutgoingMessages;
 };
 

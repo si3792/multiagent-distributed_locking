@@ -171,19 +171,19 @@ void RicartAgrawala::extractInformation(const fipa::acl::ACLMessage& message, ba
 
 void RicartAgrawala::sendAllDeferredMessages(const std::string& resource)
 {
-    for(std::list<fipa::acl::ACLMessage>::iterator it = mDeferredMessages.begin(); it != mDeferredMessages.end(); it++)
+    for(std::list<fipa::acl::ACLMessage>::iterator it = mDeferredMessages.begin(); it != mDeferredMessages.end();) //++ is in the loop
     {
         fipa::acl::ACLMessage msg = *it;
         if(msg.getContent() != resource)
         {
             // Ignore deferred messages for other resources
+            it++;
             continue;
         }
         // Include timestamp
         msg.setContent(base::Time::now().toString() +"\n" + msg.getContent());
-        // Remove from deferredMessages, decrement it and add to outgoingMessages
-        mDeferredMessages.erase(it);
-        it--;
+        // Remove from deferredMessages
+        mDeferredMessages.erase(it++);
         mOutgoingMessages.push_back(msg);
     }
 }
