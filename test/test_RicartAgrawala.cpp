@@ -60,7 +60,7 @@ BOOST_AUTO_TEST_CASE(basic_hold_and_release)
 
 /**
  * Two agents want the same resource. First, a2 wants it _later_ than a1, then a1 wants it while
- * a2 hold the lock.
+ * a2 holds the lock.
  */
 BOOST_AUTO_TEST_CASE(two_agents_conflict)
 {
@@ -126,7 +126,7 @@ BOOST_AUTO_TEST_CASE(two_agents_conflict)
     BOOST_CHECK(!dlm2.isLocked(rsc1));
     dlm1.onIncomingMessage(dlm2.popNextOutgoingMessage());
     
-    // Finally a1 hold the lock again, and releases it again.
+    // Finally a1 holds the lock again, and releases it again.
     BOOST_CHECK(dlm1.isLocked(rsc1));
     dlm1.unlock(rsc1);
     BOOST_CHECK(!dlm1.isLocked(rsc1));
