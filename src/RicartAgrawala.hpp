@@ -1,22 +1,5 @@
-/*
- * Copyright 2014 Satia <email>
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *
- */
-
-#ifndef _DISTRIBUTED_LOCKING_RICARD_AGRAWALA_HPP_
-#define _DISTRIBUTED_LOCKING_RICARD_AGRAWALA_HPP_
+#ifndef DISTRIBUTED_LOCKING_RICARD_AGRAWALA_HPP
+#define DISTRIBUTED_LOCKING_RICARD_AGRAWALA_HPP
 
 #include <vector>
 #include <list>
@@ -28,12 +11,12 @@
 
 namespace fipa {
 namespace distributed_locking {
-  /**
-   * Implementation of the Ricart Agrawala algorithm. For more information, see http://en.wikipedia.org/wiki/Ricart-Agrawala_algorithm
-   */
-  class RicartAgrawala : public DLM
-  {
-  public:
+/**
+ * Implementation of the Ricart Agrawala algorithm. For more information, see http://en.wikipedia.org/wiki/Ricart-Agrawala_algorithm
+ */
+class RicartAgrawala : public DLM
+{
+public:
     /**
      * Default constructor
      */
@@ -41,8 +24,8 @@ namespace distributed_locking {
     /**
      * Constructor
      */
-    RicartAgrawala(Agent self, std::vector<Agent> agents);
-    
+    RicartAgrawala(const Agent& self, const std::vector<Agent>& agents);
+
     /**
      * Tries to lock a resource. Subsequently, isLocked() must be called to check the status.
      */
@@ -59,19 +42,19 @@ namespace distributed_locking {
      * This message is triggered by the wrapping Orogen task, if a message is received
      */
     virtual void onIncomingMessage(const fipa::acl::ACLMessage& message);
-    
-  private:
+
+private:
     // Messages to be sent later, by leaving the associated critical resource
-    std::list<fipa::acl::ACLMessage> deferredMessages;
+    std::list<fipa::acl::ACLMessage> mDeferredMessages;
     // Current number for conversation IDs
-    int conversationIDnum;
+    int mConversationIDnum;
     // All current interests mapped to the time where the message request was created
-    std::map<std::string, base::Time> interests;
+    std::map<std::string, base::Time> mInterests;
     // The number of responses for each resource. If it reaches the number of agents, we can enter the critical resource
-    std::map<std::string, unsigned int> numberOfResponses;
+    std::map<std::string, unsigned int> mNumberOfResponses;
     // All critical resources held at the moment
-    std::list<std::string> heldResources;
-    
+    std::list<std::string> mHeldResources;
+
     /**
      * Handles an incoming request
      */
@@ -88,8 +71,8 @@ namespace distributed_locking {
      * Sends all deferred messages for a certain resource by putting them into outgoingMessages
      */
     void sendAllDeferredMessages(const std::string& resource);
-  };
+};
 } // namespace distributed_locking
 } // namespace fipa
 
-#endif // _DISTRIBUTED_LOCKING_RICARD_AGRAWALA_HPP_
+#endif // DISTRIBUTED_LOCKING_RICARD_AGRAWALA_HPP
