@@ -7,18 +7,12 @@ DLM::DLM()
 {
 }
 
-DLM::DLM(const Agent& self, const std::vector<Agent>& agents)
+DLM::DLM(const Agent& self)
     : mSelf(self)
-    , mAgents(agents)
 {
 }
 
-void DLM::addAgent(Agent agent)
-{
-    mAgents.push_back(agent);
-}
-
-void DLM::setSelf(Agent self)
+void DLM::setSelf(const Agent& self)
 {
     mSelf = self;
 }

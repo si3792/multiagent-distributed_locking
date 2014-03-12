@@ -1,4 +1,3 @@
-// FIXME: license LGPL
 #ifndef DISTRIBUTED_LOCKING_DLM_HPP
 #define DISTRIBUTED_LOCKING_DLM_HPP
 
@@ -8,6 +7,7 @@
 #include <vector>
 #include <list>
 #include <stdexcept>
+#include <boost/assign/list_of.hpp>
 
 
 /** \mainpage Distributed Locking Mechanism
@@ -25,25 +25,31 @@ class DLM
 {
 public:
     /**
+        \enum LockState
+        \brief an enum of all the possible lock states per resource
+    */
+    enum LockState { NOT_INTERESTED = 0, INTERESTED, LOCKED };
+    
+    /**
+        \enum Protocol
+        \brief an enum of all the implementations
+    */
+    enum Protocol { RICART_AGRAWALA = 0 };
+    
+    /**
      * Default constructor
      */
     DLM();
     /**
      * Constructor
      */
-    DLM(const Agent& self, const std::vector<Agent>& agents);
-
-    /**
-     * Adds an agent to the list. Must not be called more than once with the same agent.
-     */
-    void addAgent(Agent agent);
+    DLM(const Agent& self);
 
     /**
      * Sets the agent this DLM works with.
      */
-    void setSelf(Agent self);
+    void setSelf(const Agent& self);
 
-    // TODO I think here I cannot use const ref, since the Message will be destroyed and then we have an undefinded ref.
     /**
      * Gets the next outgoing message, and removes it from the internal queue. Used by the higher instance that uses this library.
      * Must only be called if hasOutgoingMessages == true.
@@ -57,7 +63,7 @@ public:
     /**
      * Tries to lock a resource. Subsequently, isLocked() must be called to check the status.
      */
-    virtual void lock(const std::string& resource)
+    virtual void lock(const std::string& resource, const std::list<Agent>& agents)
     {
         throw std::runtime_error("DLM::lock not implemented");
     }
@@ -69,9 +75,9 @@ public:
         throw std::runtime_error("DLM::unlock not implemented");
     }
     /**
-     * Checks if the lock for a given resource is held.
+     * Gets the lock state for a resource.
      */
-    virtual bool isLocked(const std::string& resource)
+    virtual LockState getLockState(const std::string& resource)
     {
         throw std::runtime_error("DLM::isLocked not implemented");
     }
@@ -88,11 +94,13 @@ public:
 protected:
     // The agent represented by this DLM
     Agent mSelf;
-    // The agents to communicate with, excluding self
-    std::vector<Agent> mAgents;
 
     // List of outgoing messages.
     std::list<fipa::acl::ACLMessage> mOutgoingMessages;
+    
+    // TODO now everyone must import boost :/
+    //static std::map<DLM::Protocol, std::string> protocolTxt = boost::assign::map_list_of
+      //  (DLM::RICART_AGRAWALA, "ricart_agrawala");
 };
 
 } // namespace distributed_locking

@@ -18,6 +18,9 @@ namespace distributed_locking {
 class RicartAgrawala : public DLM
 {
 public:
+    //static const DLM::Protocol protocol = DLM::RICART_AGRAWALA;
+    
+    
     /**
      * Default constructor
      */
@@ -25,36 +28,48 @@ public:
     /**
      * Constructor
      */
-    RicartAgrawala(const Agent& self, const std::vector<Agent>& agents);
+    RicartAgrawala(const Agent& self);
 
     /**
      * Tries to lock a resource. Subsequently, isLocked() must be called to check the status.
      */
-    virtual void lock(const std::string& resource);
+    virtual void lock(const std::string& resource, const std::list<Agent>& agents);
     /**
      * Unlocks a resource, that must have been locked before
      */
     virtual void unlock(const std::string& resource);
     /**
-     * Checks if the lock for a given resource is held
+     * Gets the lock state for a resource.
      */
-    virtual bool isLocked(const std::string& resource);
+    virtual DLM::LockState getLockState(const std::string& resource);
     /**
      * This message is triggered by the wrapping Orogen task, if a message is received
      */
     virtual void onIncomingMessage(const fipa::acl::ACLMessage& message);
 
 private:
-    // Messages to be sent later, by leaving the associated critical resource
-    std::list<fipa::acl::ACLMessage> mDeferredMessages;
+    /**
+     * Nested class representing an inner state for a certain resource.
+     * It is mapped to its resource name.
+     */
+    struct ResourceLockState
+    {
+        // Everyone to inform when locking
+        std::list<Agent> mCommunicationPartners;
+        // Every agent who responded the query. Has to be reset in lock().
+        std::list<Agent> mResponded;
+        // Messages to be sent later, by leaving the associated critical resource
+        std::list<fipa::acl::ACLMessage> mDeferredMessages;
+        // The lock state, initially not interested (=0)
+        DLM::LockState mState;
+        // The time we sent our request messages
+        base::Time mInterestTime;
+    };
+    
     // Current number for conversation IDs
     int mConversationIDnum;
     // All current interests mapped to the time where the message request was created
-    std::map<std::string, base::Time> mInterests;
-    // The number of responses for each resource. If it reaches the number of agents, we can enter the critical resource
-    std::map<std::string, unsigned int> mNumberOfResponses;
-    // All critical resources held at the moment
-    std::list<std::string> mHeldResources;
+    std::map<std::string, ResourceLockState> mLockStates;
 
     /**
      * Handles an incoming request
@@ -72,6 +87,7 @@ private:
      * Sends all deferred messages for a certain resource by putting them into outgoingMessages
      */
     void sendAllDeferredMessages(const std::string& resource);
+    
 };
 } // namespace distributed_locking
 } // namespace fipa

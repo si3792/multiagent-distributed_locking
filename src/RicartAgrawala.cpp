@@ -14,15 +14,15 @@ RicartAgrawala::RicartAgrawala()
 {
 }
 
-RicartAgrawala::RicartAgrawala(const Agent& self, const std::vector<Agent>& agents) 
-    : DLM(self, agents)
+RicartAgrawala::RicartAgrawala(const Agent& self) 
+    : DLM(self)
 {
 }
 
-void RicartAgrawala::lock(const std::string& resource)
+void RicartAgrawala::lock(const std::string& resource, const std::list<Agent>& agents)
 {
     // Only act we are not holding this resource and not already interested in it
-    if(isLocked(resource) || mInterests.count(resource) != 0)
+    if(getLockState(resource) != DLM::NOT_INTERESTED)
     {
         return;
     }
@@ -33,29 +33,34 @@ void RicartAgrawala::lock(const std::string& resource)
     // A simple request
     message.setPerformative(ACLMessage::REQUEST);
 
-    // FIXME: IDENTIFIER ???
-    // Our request messages are in the format "TIME\nRESOURCE_IDENT"
+    // Our request messages are in the format "TIME\nRESOURCE_IDENTIFIER"
     base::Time time = base::Time::now();
     message.setContent(time.toString() + "\n" + resource);
     // Add sender and receivers
     message.setSender(AgentID(mSelf.identifier));
-    for(unsigned int i = 0; i < mAgents.size(); i++)
+    for(std::list<Agent>::const_iterator it = agents.begin(); it != agents.end(); it++)
     {
-        message.addReceiver(AgentID(mAgents[i].identifier));
+        message.addReceiver(AgentID(it->identifier));
     }
-
     // Set and increase conversation ID
     message.setConversationID(mSelf.identifier + boost::lexical_cast<std::string>(mConversationIDnum));
     mConversationIDnum++;
-    
     // FIXME: use a mapping between enums and strings here --> see boost::assign::map_list_of and examples in fipa_acl
     // to prepare for adding one or more distributed allocation protocols
     // additionally that string / enum should be a static entry for this DLM subclass in order to identify it
     message.setProtocol("ricart_agrawala");
 
-    // Add to outgoing messages and to interest list
+    // Add to outgoing messages
     mOutgoingMessages.push_back(message);
-    mInterests[resource] = time;
+    
+    // Change internal state
+    mLockStates[resource].mCommunicationPartners = agents;
+    // Sort agents
+    mLockStates[resource].mCommunicationPartners.sort();
+    
+    mLockStates[resource].mResponded.clear();
+    mLockStates[resource].mState = DLM::INTERESTED;
+    mLockStates[resource].mInterestTime = time;
 
     // Now a response from each agent must be received before we can enter the critical section
 }
@@ -63,18 +68,18 @@ void RicartAgrawala::lock(const std::string& resource)
 void RicartAgrawala::unlock(const std::string& resource)
 {
     // Only act we are actually holding this resource
-    if(isLocked(resource))
+    if(getLockState(resource) == DLM::LOCKED)
     {
-        // Remove from heldResources
-        mHeldResources.remove(resource);
+        // Change internal state
+        mLockStates[resource].mState = DLM::NOT_INTERESTED;
         // Send all deferred messages for that resource
         sendAllDeferredMessages(resource);
     }
 }
 
-bool RicartAgrawala::isLocked(const std::string& resource)
+DLM::LockState RicartAgrawala::getLockState(const std::string& resource)
 {
-    return std::find(mHeldResources.begin(), mHeldResources.end(), resource) != mHeldResources.end();
+    return mLockStates[resource].mState;
 }
 
 void RicartAgrawala::onIncomingMessage(const fipa::acl::ACLMessage& message)
@@ -110,21 +115,28 @@ void RicartAgrawala::handleIncomingRequest(const fipa::acl::ACLMessage& message)
     // Keep the conversation ID
     response.setConversationID(message.getConversationID());
     response.setProtocol("ricart_agrawala");
-
-    // TODO what in the case of same time??
+    
     // We send this message now, if we don't hold the resource and are not interested or have been slower. Otherwise we defer it.
-    if(!isLocked(resource) &&
-            (mInterests.count(resource) == 0 || otherTime < mInterests.at(resource)))
+    DLM::LockState state = getLockState(resource);
+    if(state == DLM::NOT_INTERESTED || (state == DLM::INTERESTED && otherTime < mLockStates[resource].mInterestTime))
     {
-        // Our response messages are in the format "TIME\nRESOURCE_IDENT"
+        // Our response messages are in the format "TIME\nRESOURCE_IDENTIFIER"
         response.setContent(base::Time::now().toString() +"\n" + resource);
         mOutgoingMessages.push_back(response);
+    }
+    else if(state == DLM::INTERESTED && otherTime == mLockStates[resource].mInterestTime)
+    {
+        // If it should happen that 2 agents have the same timestamp, the interest is revoked, and they have to call lock() again
+        // The following is identical to unlock(), except that the prerequisite of being LOCKED is not met
+        mLockStates[resource].mState = DLM::NOT_INTERESTED;
+        // Send all deferred messages for that resource
+        sendAllDeferredMessages(resource);
     }
     else
     {
         // We will have to add the timestamp later!
         response.setContent(resource);
-        mDeferredMessages.push_back(response);
+        mLockStates[resource].mDeferredMessages.push_back(response);
     }
 }
 
@@ -135,21 +147,20 @@ void RicartAgrawala::handleIncomingResponse(const fipa::acl::ACLMessage& message
     std::string resource;
     extractInformation(message, otherTime, resource);
 
-    // If we're not interested in that resource, we can ignore the message
-    if(mInterests.count(resource) == 0)
+    // A response is only relevant if we're "INTERESTED"
+    if(getLockState(resource) != DLM::INTERESTED)
     {
         return;
     }
-
-    // Increase the number of responses for that resource
-    mNumberOfResponses[resource]++;
+    
+    // Save the sender
+    mLockStates[resource].mResponded.push_back(Agent (message.getSender().getName()));
+    // Sort agents who responded
+    mLockStates[resource].mResponded.sort();
     // We have got the lock, if all agents responded
-    // XXX this does not work if agents have been added afterwards and got no request message
-    if(mNumberOfResponses[resource] == mAgents.size())
+    if(mLockStates[resource].mCommunicationPartners == mLockStates[resource].mResponded)
     {
-        mNumberOfResponses[resource] = 0;
-        mInterests.erase(resource);
-        mHeldResources.push_back(resource);
+        mLockStates[resource].mState = DLM::LOCKED;
     }
 }
 
@@ -171,21 +182,16 @@ void RicartAgrawala::extractInformation(const fipa::acl::ACLMessage& message, ba
 
 void RicartAgrawala::sendAllDeferredMessages(const std::string& resource)
 {
-    for(std::list<fipa::acl::ACLMessage>::iterator it = mDeferredMessages.begin(); it != mDeferredMessages.end();) //++ is in the loop
+    for(std::list<fipa::acl::ACLMessage>::iterator it = mLockStates[resource].mDeferredMessages.begin();
+        it != mLockStates[resource].mDeferredMessages.end(); it++)
     {
         fipa::acl::ACLMessage msg = *it;
-        if(msg.getContent() != resource)
-        {
-            // Ignore deferred messages for other resources
-            it++;
-            continue;
-        }
         // Include timestamp
         msg.setContent(base::Time::now().toString() +"\n" + msg.getContent());
-        // Remove from deferredMessages
-        mDeferredMessages.erase(it++);
         mOutgoingMessages.push_back(msg);
     }
+    // Clear list
+    mLockStates[resource].mDeferredMessages.clear();
 }
 
 } // namespace distributed_locking

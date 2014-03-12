@@ -4,29 +4,40 @@
 #include <string>
 
 namespace fipa {
-  /**
-   * Very basic agent for mutual exclusion on a distributed system. It only contains an identifier.
-   */
-  struct Agent
-  {
-    // Identifier of the agent
-    std::string identifier;
-    
     /**
-     * Default Constructor -- required
+     * Very basic agent for mutual exclusion on a distributed system. It only contains an identifier.
      */
-    Agent()
-	    : identifier()
-    {   
-    }   
+    class Agent
+    {
+    public:
+        // Identifier of the agent
+        std::string identifier;
+        
+        /**
+         * Default Constructor -- required
+         */
+        Agent()
+                : identifier()
+        {   
+        }   
 
-    /**
-     * Constrctor with identifier
-     */
-    Agent(const std::string& identifier)
-	    : identifier(identifier)
-    {   
-    } 
+        /**
+        * Constrctor with identifier
+        */
+        Agent(const std::string& identifier)
+                : identifier(identifier)
+        {   
+        } 
+        
+        bool operator < (const Agent& a) const
+        {
+            return identifier < a.identifier;
+        }
+        
+        bool operator == (const Agent& a) const
+        {
+            return identifier == a.identifier;
+        }
   };
 } // namespace fipa
 
