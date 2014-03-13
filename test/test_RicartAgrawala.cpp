@@ -1,5 +1,6 @@
 #include <boost/test/unit_test.hpp>
 #include <boost/assign/list_of.hpp>
+#include <boost/algorithm/string.hpp>
 #include <distributed_locking/RicartAgrawala.hpp>
 
 #include <iostream>
@@ -69,7 +70,7 @@ BOOST_AUTO_TEST_CASE(two_agents_conflict)
 {
     // Create 2 Agents
     Agent a1 ("agent1"), a2 ("agent2");
-    // Create 3 DLMs
+    // Create 2 DLMs
     RicartAgrawala dlm1 = RicartAgrawala(a1);
     RicartAgrawala dlm2 = RicartAgrawala(a2);
 
@@ -136,4 +137,40 @@ BOOST_AUTO_TEST_CASE(two_agents_conflict)
     // Everyone is happy
 }
 
-// TODO test for same time
+
+/**
+ * Two agents (one simulated) want one resource at the same time. The agent should revoke his interest.
+ */
+BOOST_AUTO_TEST_CASE(same_time_conflict)
+{
+    // Create 2 Agents, a2 is simulated
+    Agent a1 ("agent1"), a2 ("agent2");
+    // Create 1 DLM
+    RicartAgrawala dlm1 = RicartAgrawala(a1);
+
+    // Define critical resource
+    std::string rsc1 = "rsc1";
+    
+    // Let dlm1 lock rsc1
+    dlm1.lock(rsc1, boost::assign::list_of(a2));
+    // Now he should be interested
+    BOOST_CHECK(dlm1.getLockState(rsc1) == lock_state::INTERESTED);
+    
+    // Get the outgoing message
+    ACLMessage dlm1msg = dlm1.popNextOutgoingMessage();
+    
+    // Simulated agent 2 has basically the same message. He "revoked" his interest after
+    // "receiving" dlm1msg
+    ACLMessage simMsg;
+    simMsg.setPerformative(dlm1msg.getPerformative());
+    simMsg.setContent(dlm1msg.getContent());
+    simMsg.setSender(AgentID(a2.identifier));
+    simMsg.addReceiver(dlm1msg.getSender());
+    simMsg.setConversationID(a2.identifier + "0");
+    simMsg.setProtocol("ricart_agrawala"); // TODO use const
+    
+    // Send this message to a1
+    dlm1.onIncomingMessage(simMsg);
+    // Now he shouldn't be interested any more
+    BOOST_CHECK(dlm1.getLockState(rsc1) == lock_state::NOT_INTERESTED);
+}
