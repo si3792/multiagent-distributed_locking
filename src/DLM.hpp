@@ -40,6 +40,11 @@ class DLM
 {
 public:
     /**
+     * Factory method to get a pointer to a certain DLM implementation
+     */
+    static DLM* dlmFactory(fipa::distributed_locking::protocol::Protocol implementation, const fipa::Agent& self);
+    
+    /**
      * Default constructor
      */
     DLM();
