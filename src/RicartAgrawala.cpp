@@ -22,7 +22,7 @@ RicartAgrawala::RicartAgrawala(const Agent& self)
 void RicartAgrawala::lock(const std::string& resource, const std::list<Agent>& agents)
 {
     // Only act we are not holding this resource and not already interested in it
-    if(getLockState(resource) != DLM::NOT_INTERESTED)
+    if(getLockState(resource) != lock_state::NOT_INTERESTED)
     {
         return;
     }
@@ -59,7 +59,7 @@ void RicartAgrawala::lock(const std::string& resource, const std::list<Agent>& a
     mLockStates[resource].mCommunicationPartners.sort();
     
     mLockStates[resource].mResponded.clear();
-    mLockStates[resource].mState = DLM::INTERESTED;
+    mLockStates[resource].mState = lock_state::INTERESTED;
     mLockStates[resource].mInterestTime = time;
 
     // Now a response from each agent must be received before we can enter the critical section
@@ -68,16 +68,16 @@ void RicartAgrawala::lock(const std::string& resource, const std::list<Agent>& a
 void RicartAgrawala::unlock(const std::string& resource)
 {
     // Only act we are actually holding this resource
-    if(getLockState(resource) == DLM::LOCKED)
+    if(getLockState(resource) == lock_state::LOCKED)
     {
         // Change internal state
-        mLockStates[resource].mState = DLM::NOT_INTERESTED;
+        mLockStates[resource].mState = lock_state::NOT_INTERESTED;
         // Send all deferred messages for that resource
         sendAllDeferredMessages(resource);
     }
 }
 
-DLM::LockState RicartAgrawala::getLockState(const std::string& resource)
+lock_state::LockState RicartAgrawala::getLockState(const std::string& resource)
 {
     return mLockStates[resource].mState;
 }
@@ -117,18 +117,18 @@ void RicartAgrawala::handleIncomingRequest(const fipa::acl::ACLMessage& message)
     response.setProtocol("ricart_agrawala");
     
     // We send this message now, if we don't hold the resource and are not interested or have been slower. Otherwise we defer it.
-    DLM::LockState state = getLockState(resource);
-    if(state == DLM::NOT_INTERESTED || (state == DLM::INTERESTED && otherTime < mLockStates[resource].mInterestTime))
+    lock_state::LockState state = getLockState(resource);
+    if(state == lock_state::NOT_INTERESTED || (state == lock_state::INTERESTED && otherTime < mLockStates[resource].mInterestTime))
     {
         // Our response messages are in the format "TIME\nRESOURCE_IDENTIFIER"
         response.setContent(base::Time::now().toString() +"\n" + resource);
         mOutgoingMessages.push_back(response);
     }
-    else if(state == DLM::INTERESTED && otherTime == mLockStates[resource].mInterestTime)
+    else if(state == lock_state::INTERESTED && otherTime == mLockStates[resource].mInterestTime)
     {
         // If it should happen that 2 agents have the same timestamp, the interest is revoked, and they have to call lock() again
         // The following is identical to unlock(), except that the prerequisite of being LOCKED is not met
-        mLockStates[resource].mState = DLM::NOT_INTERESTED;
+        mLockStates[resource].mState = lock_state::NOT_INTERESTED;
         // Send all deferred messages for that resource
         sendAllDeferredMessages(resource);
     }
@@ -148,7 +148,7 @@ void RicartAgrawala::handleIncomingResponse(const fipa::acl::ACLMessage& message
     extractInformation(message, otherTime, resource);
 
     // A response is only relevant if we're "INTERESTED"
-    if(getLockState(resource) != DLM::INTERESTED)
+    if(getLockState(resource) != lock_state::INTERESTED)
     {
         return;
     }
@@ -160,7 +160,7 @@ void RicartAgrawala::handleIncomingResponse(const fipa::acl::ACLMessage& message
     // We have got the lock, if all agents responded
     if(mLockStates[resource].mCommunicationPartners == mLockStates[resource].mResponded)
     {
-        mLockStates[resource].mState = DLM::LOCKED;
+        mLockStates[resource].mState = lock_state::LOCKED;
     }
 }
 

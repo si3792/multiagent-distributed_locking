@@ -41,7 +41,7 @@ public:
     /**
      * Gets the lock state for a resource.
      */
-    virtual DLM::LockState getLockState(const std::string& resource);
+    virtual lock_state::LockState getLockState(const std::string& resource);
     /**
      * This message is triggered by the wrapping Orogen task, if a message is received
      */
@@ -61,7 +61,7 @@ private:
         // Messages to be sent later, by leaving the associated critical resource
         std::list<fipa::acl::ACLMessage> mDeferredMessages;
         // The lock state, initially not interested (=0)
-        DLM::LockState mState;
+        lock_state::LockState mState;
         // The time we sent our request messages
         base::Time mInterestTime;
     };

@@ -24,12 +24,12 @@ BOOST_AUTO_TEST_CASE(basic_hold_and_release)
     std::string rsc1 = "rsc1";
     
     // dlm1 should not be interested in the resource.
-    BOOST_CHECK(dlm1.getLockState(rsc1) == DLM::NOT_INTERESTED);
+    BOOST_CHECK(dlm1.getLockState(rsc1) == lock_state::NOT_INTERESTED);
 
     // Let dlm1 lock rsc1
     dlm1.lock(rsc1, boost::assign::list_of(a2)(a3));
     // He should be INTERESTED now
-    BOOST_CHECK(dlm1.getLockState(rsc1) == DLM::INTERESTED);
+    BOOST_CHECK(dlm1.getLockState(rsc1) == lock_state::INTERESTED);
     
     // OutgoingMessages should contain one messages (2 receivers)
     BOOST_CHECK(dlm1.hasOutgoingMessages());
@@ -54,11 +54,11 @@ BOOST_AUTO_TEST_CASE(basic_hold_and_release)
     dlm1.onIncomingMessage(dlm3msg);
 
     // Now, agent1 should hold the lock
-    BOOST_CHECK(dlm1.getLockState(rsc1) == DLM::LOCKED);
+    BOOST_CHECK(dlm1.getLockState(rsc1) == lock_state::LOCKED);
 
     // We release the lock and check it has been released
     dlm1.unlock(rsc1);
-    BOOST_CHECK(dlm1.getLockState(rsc1) == DLM::NOT_INTERESTED);
+    BOOST_CHECK(dlm1.getLockState(rsc1) == lock_state::NOT_INTERESTED);
 }
 
 /**
@@ -103,10 +103,10 @@ BOOST_AUTO_TEST_CASE(two_agents_conflict)
     // Lets forward the response
     dlm1.onIncomingMessage(dlm2rsp);
     // Now, agent1 should hold the lock
-    BOOST_CHECK(dlm1.getLockState(rsc1) == DLM::LOCKED);
+    BOOST_CHECK(dlm1.getLockState(rsc1) == lock_state::LOCKED);
     // We release the lock and check it has been released
     dlm1.unlock(rsc1);
-    BOOST_CHECK(dlm1.getLockState(rsc1) == DLM::NOT_INTERESTED);
+    BOOST_CHECK(dlm1.getLockState(rsc1) == lock_state::NOT_INTERESTED);
     // Now agent1 should have a new outgoing message, than has been deferred earlier
     BOOST_CHECK(dlm1.hasOutgoingMessages());
     ACLMessage dlm1rsp = dlm1.popNextOutgoingMessage();
@@ -115,7 +115,7 @@ BOOST_AUTO_TEST_CASE(two_agents_conflict)
     // We forward it
     dlm2.onIncomingMessage(dlm1rsp);
     // Now, agent2 should hold the lock
-    BOOST_CHECK(dlm2.getLockState(rsc1) == DLM::LOCKED);
+    BOOST_CHECK(dlm2.getLockState(rsc1) == lock_state::LOCKED);
     
     // a1 requests the same resource again
     dlm1.lock(rsc1, boost::assign::list_of(a2));
@@ -126,13 +126,13 @@ BOOST_AUTO_TEST_CASE(two_agents_conflict)
     
     // Now a2 releases the lock, and should have a new outgoing message, which we forward
     dlm2.unlock(rsc1);
-    BOOST_CHECK(dlm2.getLockState(rsc1) == DLM::NOT_INTERESTED);
+    BOOST_CHECK(dlm2.getLockState(rsc1) == lock_state::NOT_INTERESTED);
     dlm1.onIncomingMessage(dlm2.popNextOutgoingMessage());
     
     // Finally a1 holds the lock again, and releases it again.
-    BOOST_CHECK(dlm1.getLockState(rsc1) == DLM::LOCKED);
+    BOOST_CHECK(dlm1.getLockState(rsc1) == lock_state::LOCKED);
     dlm1.unlock(rsc1);
-    BOOST_CHECK(dlm1.getLockState(rsc1) == DLM::NOT_INTERESTED);
+    BOOST_CHECK(dlm1.getLockState(rsc1) == lock_state::NOT_INTERESTED);
     // Everyone is happy
 }
 

@@ -6,8 +6,8 @@
 
 #include <vector>
 #include <list>
-#include <stdexcept>
-#include <boost/assign/list_of.hpp>
+
+//#include <boost/assign/list_of.hpp>
 
 
 /** \mainpage Distributed Locking Mechanism
@@ -18,18 +18,21 @@
 
 namespace fipa {
 namespace distributed_locking {
+namespace lock_state {    
+
+/**
+    \enum LockState
+    \brief an enum of all the possible lock states per resource
+*/
+enum LockState { NOT_INTERESTED = 0, INTERESTED, LOCKED };
+} // namespace lock_state
+
 /**
  * A distributed locking mechanism. This class is abstract.
  */
 class DLM
 {
 public:
-    /**
-        \enum LockState
-        \brief an enum of all the possible lock states per resource
-    */
-    enum LockState { NOT_INTERESTED = 0, INTERESTED, LOCKED };
-    
     /**
         \enum Protocol
         \brief an enum of all the implementations
@@ -63,32 +66,20 @@ public:
     /**
      * Tries to lock a resource. Subsequently, isLocked() must be called to check the status.
      */
-    virtual void lock(const std::string& resource, const std::list<Agent>& agents)
-    {
-        throw std::runtime_error("DLM::lock not implemented");
-    }
+    virtual void lock(const std::string& resource, const std::list<Agent>& agents);
     /**
      * Unlocks a resource, that should have been locked before.
      */
-    virtual void unlock(const std::string& resource)
-    {
-        throw std::runtime_error("DLM::unlock not implemented");
-    }
+    virtual void unlock(const std::string& resource);
     /**
      * Gets the lock state for a resource.
      */
-    virtual LockState getLockState(const std::string& resource)
-    {
-        throw std::runtime_error("DLM::isLocked not implemented");
-    }
+    virtual lock_state::LockState getLockState(const std::string& resource);
 
     /**
      * This message is triggered by higher instance that uses this library, if a message is received. Sequential calls must be guaranteed.
      */
-    virtual void onIncomingMessage(const fipa::acl::ACLMessage& message)
-    {
-        throw std::runtime_error("DLM::onIncomingMessage not implemented");
-    }
+    virtual void onIncomingMessage(const fipa::acl::ACLMessage& message);
 
 
 protected:
