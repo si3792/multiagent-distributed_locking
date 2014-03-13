@@ -7,8 +7,6 @@
 #include <vector>
 #include <list>
 
-//#include <boost/assign/list_of.hpp>
-
 
 /** \mainpage Distributed Locking Mechanism
  *  This library provides an interface for a locking mechanism on distributed systems. This interface is given by the abstract class DLM.
@@ -18,8 +16,8 @@
 
 namespace fipa {
 namespace distributed_locking {
-namespace lock_state {    
 
+namespace lock_state {
 /**
     \enum LockState
     \brief an enum of all the possible lock states per resource
@@ -27,18 +25,20 @@ namespace lock_state {
 enum LockState { NOT_INTERESTED = 0, INTERESTED, LOCKED };
 } // namespace lock_state
 
+namespace protocol {
+/**
+    \enum Protocol
+    \brief an enum of all the implementations
+*/
+enum Protocol { RICART_AGRAWALA = 0 };    
+} // namespace protocol
+
 /**
  * A distributed locking mechanism. This class is abstract.
  */
 class DLM
 {
 public:
-    /**
-        \enum Protocol
-        \brief an enum of all the implementations
-    */
-    enum Protocol { RICART_AGRAWALA = 0 };
-    
     /**
      * Default constructor
      */
@@ -52,6 +52,11 @@ public:
      * Sets the agent this DLM works with.
      */
     void setSelf(const Agent& self);
+    
+    /**
+     * Gets the agent this DLM works with.
+     */
+    const Agent& getSelf();
 
     /**
      * Gets the next outgoing message, and removes it from the internal queue. Used by the higher instance that uses this library.
@@ -89,9 +94,8 @@ protected:
     // List of outgoing messages.
     std::list<fipa::acl::ACLMessage> mOutgoingMessages;
     
-    // TODO now everyone must import boost :/
-    //static std::map<DLM::Protocol, std::string> protocolTxt = boost::assign::map_list_of
-      //  (DLM::RICART_AGRAWALA, "ricart_agrawala");
+    // A mapping between protocols and strings
+    static std::map<protocol::Protocol, std::string> protocolTxt;
 };
 
 } // namespace distributed_locking

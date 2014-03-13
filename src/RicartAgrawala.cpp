@@ -9,6 +9,9 @@
 namespace fipa {
 namespace distributed_locking {
 
+// Set the protocol
+const protocol::Protocol RicartAgrawala::protocol = protocol::RICART_AGRAWALA;
+    
 RicartAgrawala::RicartAgrawala() 
     : DLM()
 {
@@ -48,7 +51,7 @@ void RicartAgrawala::lock(const std::string& resource, const std::list<Agent>& a
     // FIXME: use a mapping between enums and strings here --> see boost::assign::map_list_of and examples in fipa_acl
     // to prepare for adding one or more distributed allocation protocols
     // additionally that string / enum should be a static entry for this DLM subclass in order to identify it
-    message.setProtocol("ricart_agrawala");
+    message.setProtocol(protocolTxt[protocol]);
 
     // Add to outgoing messages
     mOutgoingMessages.push_back(message);
@@ -114,7 +117,7 @@ void RicartAgrawala::handleIncomingRequest(const fipa::acl::ACLMessage& message)
 
     // Keep the conversation ID
     response.setConversationID(message.getConversationID());
-    response.setProtocol("ricart_agrawala");
+    response.setProtocol(protocolTxt[protocol]);
     
     // We send this message now, if we don't hold the resource and are not interested or have been slower. Otherwise we defer it.
     lock_state::LockState state = getLockState(resource);

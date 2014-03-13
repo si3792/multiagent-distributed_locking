@@ -18,8 +18,10 @@ namespace distributed_locking {
 class RicartAgrawala : public DLM
 {
 public:
-    //static const DLM::Protocol protocol = DLM::RICART_AGRAWALA;
-    
+    /**
+     * The implemented protocol
+     */
+    static const protocol::Protocol protocol;
     
     /**
      * Default constructor

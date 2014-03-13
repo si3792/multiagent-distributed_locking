@@ -1,9 +1,15 @@
 #include "DLM.hpp"
 
 #include <stdexcept>
+#include <boost/assign/list_of.hpp>
 
 namespace fipa {
 namespace distributed_locking {
+    
+// Initialize the Protocol->string mapping
+std::map<protocol::Protocol, std::string> DLM::protocolTxt = boost::assign::map_list_of
+    (protocol::RICART_AGRAWALA, "ricart_agrawala");
+
 
 DLM::DLM()
 {
@@ -12,6 +18,11 @@ DLM::DLM()
 DLM::DLM(const Agent& self)
     : mSelf(self)
 {
+}
+
+const Agent& DLM::getSelf()
+{
+    return mSelf;
 }
 
 void DLM::setSelf(const Agent& self)

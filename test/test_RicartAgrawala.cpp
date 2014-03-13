@@ -1,6 +1,7 @@
 #include <boost/test/unit_test.hpp>
 #include <boost/assign/list_of.hpp>
 #include <boost/algorithm/string.hpp>
+
 #include <distributed_locking/RicartAgrawala.hpp>
 
 #include <iostream>
@@ -167,7 +168,7 @@ BOOST_AUTO_TEST_CASE(same_time_conflict)
     simMsg.setSender(AgentID(a2.identifier));
     simMsg.addReceiver(dlm1msg.getSender());
     simMsg.setConversationID(a2.identifier + "0");
-    simMsg.setProtocol("ricart_agrawala"); // TODO use const
+    simMsg.setProtocol(dlm1msg.getProtocol());
     
     // Send this message to a1
     dlm1.onIncomingMessage(simMsg);
