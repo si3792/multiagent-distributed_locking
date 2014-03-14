@@ -2,7 +2,6 @@
 
 #include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string.hpp>
-#include <iostream>
 #include <string>
 #include <stdexcept>
 
@@ -48,9 +47,6 @@ void RicartAgrawala::lock(const std::string& resource, const std::list<Agent>& a
     // Set and increase conversation ID
     message.setConversationID(mSelf.identifier + boost::lexical_cast<std::string>(mConversationIDnum));
     mConversationIDnum++;
-    // FIXME: use a mapping between enums and strings here --> see boost::assign::map_list_of and examples in fipa_acl
-    // to prepare for adding one or more distributed allocation protocols
-    // additionally that string / enum should be a static entry for this DLM subclass in order to identify it
     message.setProtocol(protocolTxt[protocol]);
 
     // Add to outgoing messages
@@ -88,6 +84,12 @@ lock_state::LockState RicartAgrawala::getLockState(const std::string& resource)
 void RicartAgrawala::onIncomingMessage(const fipa::acl::ACLMessage& message)
 {
     using namespace fipa::acl;
+    // Check if it's the right protocol
+    if(message.getProtocol() != protocolTxt[protocol])
+    {
+        return;
+    }
+    
     // Check message type
     if(ACLMessage::performativeFromString(message.getPerformative()) == ACLMessage::REQUEST)
     {
@@ -176,7 +178,7 @@ void RicartAgrawala::extractInformation(const fipa::acl::ACLMessage& message, ba
 
     if(strs.size() != 2)
     {
-        throw std::runtime_error("DLM::extractInformation ACLMessage content malformed");
+        throw std::runtime_error("RicartAgrawala::extractInformation ACLMessage content malformed");
     }
     // Save the extracted information in the references
     time = base::Time::fromString(strs[0]);

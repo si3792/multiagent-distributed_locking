@@ -4,7 +4,6 @@
 #include "Agent.hpp"
 #include <fipa_acl/fipa_acl.h>
 
-#include <vector>
 #include <list>
 
 
@@ -30,7 +29,10 @@ namespace protocol {
     \enum Protocol
     \brief an enum of all the implementations
 */
-enum Protocol { RICART_AGRAWALA = 0 };    
+enum Protocol { RICART_AGRAWALA = 0, SUZUKI_KASAMI,
+    // Following values only for enumertaing over this enum
+    PROTOCOL_START = RICART_AGRAWALA, PROTOCOL_END = SUZUKI_KASAMI
+};    
 } // namespace protocol
 
 /**

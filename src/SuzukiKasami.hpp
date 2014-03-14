@@ -1,10 +1,11 @@
-#ifndef DISTRIBUTED_LOCKING_RICARD_AGRAWALA_HPP
-#define DISTRIBUTED_LOCKING_RICARD_AGRAWALA_HPP
+#ifndef DISTRIBUTED_LOCKING_SUZUKI_KASAMI_HPP
+#define DISTRIBUTED_LOCKING_SUZUKI_KASAMI_HPP
 
 #include "DLM.hpp"
 #include "Agent.hpp"
 #include <fipa_acl/fipa_acl.h>
 
+#include <deque>
 #include <list>
 #include <map>
 
@@ -12,9 +13,9 @@
 namespace fipa {
 namespace distributed_locking {
 /**
- * Implementation of the Ricart Agrawala algorithm. For more information, see http://en.wikipedia.org/wiki/Ricart-Agrawala_algorithm
+ * Implementation of the Suzuki Kasami algorithm. For more information, see http://en.wikipedia.org/wiki/Suzuki-Kasami_algorithm
  */
-class RicartAgrawala : public DLM
+class SuzukiKasami : public DLM
 {
 public:
     /**
@@ -25,11 +26,11 @@ public:
     /**
      * Default constructor
      */
-    RicartAgrawala();
+    SuzukiKasami();
     /**
      * Constructor
      */
-    RicartAgrawala(const Agent& self);
+    SuzukiKasami(const Agent& self);
 
     /**
      * Tries to lock a resource. Subsequently, isLocked() must be called to check the status.
@@ -50,21 +51,42 @@ public:
 
 private:
     /**
+     * A token used in this protocol
+     */
+    struct Token
+    {
+        // LastRequestNumber for each of the agents
+        std::map<std::string, int> mLastRequestNumber;
+         // Queue of agents waiting for the token
+        std::deque<std::string> mQueue;
+        
+        /**
+         * Boost serialization method
+         */
+        template<class Archive>
+        void serialize(Archive& ar, unsigned int version)
+        {
+            ar & mLastRequestNumber;
+            ar & mQueue;
+        }
+    };
+    
+    /**
      * Nested class representing an inner state for a certain resource.
      * It is mapped to its resource name.
      */
     struct ResourceLockState
     {
+        // The token.
+        Token mToken; // FIXME when are tokens created!?
+        // Whether the token is currently held
+        bool mHoldingToken;
         // Everyone to inform when locking
         std::list<Agent> mCommunicationPartners;
-        // Every agent who responded the query. Has to be reset in lock().
-        std::list<Agent> mResponded;
-        // Messages to be sent later, by leaving the associated critical resource
-        std::list<fipa::acl::ACLMessage> mDeferredMessages;
+        // Last known request number for each of the agents
+        std::map<std::string, int> mRequestNumber;
         // The lock state, initially not interested (=0)
         lock_state::LockState mState;
-        // The time we sent our request messages
-        base::Time mInterestTime;
     };
     
     // Current number for conversation IDs
@@ -83,14 +105,18 @@ private:
     /**
      * Extracts the information from the content and saves it in the passed references
      */
-    void extractInformation(const fipa::acl::ACLMessage& message, base::Time& time, std::string& resource);
+    void extractInformation(const fipa::acl::ACLMessage& message, std::string& resource, int& sequence_number);
     /**
-     * Sends all deferred messages for a certain resource by putting them into outgoingMessages
+     * Extracts the information from the content and saves it in the passed references
      */
-    void sendAllDeferredMessages(const std::string& resource);
+    void extractInformation(const fipa::acl::ACLMessage& message, std::string& resource, Token& token);
+    /**
+     * Send the token to the receiver. No checks (token held, lock not held) are made!
+     */
+    void sendToken(const std::string& receiver, const std::string& resource);
     
 };
 } // namespace distributed_locking
 } // namespace fipa
 
-#endif // DISTRIBUTED_LOCKING_RICARD_AGRAWALA_HPP
+#endif // DISTRIBUTED_LOCKING_SUZUKI_KASAMI_HPP

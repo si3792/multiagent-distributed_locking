@@ -1,5 +1,6 @@
 #include "DLM.hpp"
 #include "RicartAgrawala.hpp"
+#include "SuzukiKasami.hpp"
 
 #include <stdexcept>
 #include <boost/assign/list_of.hpp>
@@ -9,7 +10,8 @@ namespace distributed_locking {
     
 // Initialize the Protocol->string mapping
 std::map<protocol::Protocol, std::string> DLM::protocolTxt = boost::assign::map_list_of
-    (protocol::RICART_AGRAWALA, "ricart_agrawala");
+    (protocol::RICART_AGRAWALA, "ricart_agrawala")
+    (protocol::SUZUKI_KASAMI, "suzuki_kasami");
     
 DLM* DLM::dlmFactory(protocol::Protocol implementation, const Agent& self)
 {
@@ -17,6 +19,8 @@ DLM* DLM::dlmFactory(protocol::Protocol implementation, const Agent& self)
     {
         case protocol::RICART_AGRAWALA:
             return new RicartAgrawala(self);
+        case protocol::SUZUKI_KASAMI:
+            return new SuzukiKasami(self);
         default:
             return NULL;
     }
