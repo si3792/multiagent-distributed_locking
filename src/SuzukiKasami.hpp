@@ -9,7 +9,6 @@
 #include <list>
 #include <map>
 
-
 namespace fipa {
 namespace distributed_locking {
 /**
@@ -113,7 +112,7 @@ private:
     /**
      * Send the token to the receiver. No checks (token held, lock not held) are made!
      */
-    void sendToken(const std::string& receiver, const std::string& resource);
+    void sendToken(const fipa::acl::AgentID& receiver, const std::string& resource, const std::string& conversationID);
     
 };
 } // namespace distributed_locking

@@ -59,8 +59,7 @@ void SuzukiKasami::lock(const std::string& resource, const std::list<Agent>& age
         message.addReceiver(AgentID(it->identifier));
     }
     // Set and increase conversation ID
-    message.setConversationID(mSelf.identifier + boost::lexical_cast<std::string>(mConversationIDnum));
-    mConversationIDnum++;
+    message.setConversationID(mSelf.identifier + boost::lexical_cast<std::string>(mConversationIDnum++));
     message.setProtocol(protocolTxt[protocol]);
 
     // Add to outgoing messages
@@ -85,22 +84,29 @@ void SuzukiKasami::unlock(const std::string& resource)
         
         // Update ID to have been executed
         mLockStates[resource].mToken.mLastRequestNumber[mSelf.identifier] = mLockStates[resource].mRequestNumber[mSelf.identifier];
-        // TODO
-//         // Add missing agents to the token Q
-//         foreach(string agentID not in token.Q)
-//         {
-//             if(RN[agentID] = LN[agentID] + 1)
-//             {
-//             token.Q.push_back(agentID);
-//             }
-//         }
-//         // Forward token if there's a pending request
-//         if(!token.Q.isEmpty())
-//         {
-//             string agentID = token.Q.pop_front();
-//             sendTokenTo(agentID);
-//         }
-//         // Else keep token
+        
+        // Iterate through all RequestNumbers known to the agent
+        for(std::map<std::string, int>::iterator it = mLockStates[resource].mRequestNumber.begin();
+            it != mLockStates[resource].mRequestNumber.end(); it++)
+        {
+            // If the request number of another agent is higher than the same request number known to the token
+            // that means he requested the token. If he is not already in the queue, we add it.
+            if(it->second == mLockStates[resource].mToken.mLastRequestNumber[it->first] + 1
+                && std::find(mLockStates[resource].mToken.mQueue.begin(), mLockStates[resource].mToken.mQueue.end(), it->first) 
+                == mLockStates[resource].mToken.mQueue.end()
+            )
+            {
+                mLockStates[resource].mToken.mQueue.push_back(it->first);
+            }
+        }
+        // Forward token if there's a pending request (queue not empty)
+        if(!mLockStates[resource].mToken.mQueue.empty())
+        {
+            std::string agentID = mLockStates[resource].mToken.mQueue.front();
+            mLockStates[resource].mToken.mQueue.pop_front();
+            sendToken(fipa::acl::AgentID (agentID), resource, mSelf.identifier + boost::lexical_cast<std::string>(mConversationIDnum++));
+        }
+        // Else keep token
     }
 }
 
@@ -132,69 +138,44 @@ void SuzukiKasami::onIncomingMessage(const fipa::acl::ACLMessage& message)
 
 void SuzukiKasami::handleIncomingRequest(const fipa::acl::ACLMessage& message)
 {
-//     base::Time otherTime;
-//     std::string resource;
-//     extractInformation(message, otherTime, resource);
-// 
-//     // Create a response
-//     fipa::acl::ACLMessage response;
-//     // An inform we're not interested in or done using the resource
-//     response.setPerformative(fipa::acl::ACLMessage::INFORM);
-// 
-//     // Add sender and receiver
-//     response.setSender(fipa::acl::AgentID(mSelf.identifier));
-//     response.addReceiver(message.getSender());
-// 
-//     // Keep the conversation ID
-//     response.setConversationID(message.getConversationID());
-//     response.setProtocol(protocolTxt[protocol]);
-//     
-//     // We send this message now, if we don't hold the resource and are not interested or have been slower. Otherwise we defer it.
-//     lock_state::LockState state = getLockState(resource);
-//     if(state == lock_state::NOT_INTERESTED || (state == lock_state::INTERESTED && otherTime < mLockStates[resource].mInterestTime))
-//     {
-//         // Our response messages are in the format "TIME\nRESOURCE_IDENTIFIER"
-//         response.setContent(base::Time::now().toString() +"\n" + resource);
-//         mOutgoingMessages.push_back(response);
-//     }
-//     else if(state == lock_state::INTERESTED && otherTime == mLockStates[resource].mInterestTime)
-//     {
-//         // If it should happen that 2 agents have the same timestamp, the interest is revoked, and they have to call lock() again
-//         // The following is identical to unlock(), except that the prerequisite of being LOCKED is not met
-//         mLockStates[resource].mState = lock_state::NOT_INTERESTED;
-//         // Send all deferred messages for that resource
-//         sendAllDeferredMessages(resource);
-//     }
-//     else
-//     {
-//         // We will have to add the timestamp later!
-//         response.setContent(resource);
-//         mLockStates[resource].mDeferredMessages.push_back(response);
-//     }
+    // Extract information
+    std::string resource;
+    int sequence_number;
+    extractInformation(message, resource, sequence_number);
+    fipa::acl::AgentID agentID = message.getSender();
+    std::string agentName = agentID.getName();
+    
+    // Update our request number if necessary
+    if(mLockStates[resource].mRequestNumber[agentName] < sequence_number)
+    {
+        mLockStates[resource].mRequestNumber[agentName] = sequence_number;
+    }
+    
+    // If we hold the token && are not holding the lock && the sequence_number 
+    // indicates an outstanding request: we send the token.
+    if(mLockStates[resource].mHoldingToken && getLockState(resource) != lock_state::LOCKED
+        && mLockStates[resource].mRequestNumber[agentName] == mLockStates[resource].mToken.mLastRequestNumber[agentName] + 1)
+    {
+        sendToken(agentID, resource, message.getConversationID());
+    }
 }
 
 void SuzukiKasami::handleIncomingResponse(const fipa::acl::ACLMessage& message)
 {
-//     // If we get a response, that likely means, we are interested in a resource
-//     base::Time otherTime;
-//     std::string resource;
-//     extractInformation(message, otherTime, resource);
-// 
-//     // A response is only relevant if we're "INTERESTED"
-//     if(getLockState(resource) != lock_state::INTERESTED)
-//     {
-//         return;
-//     }
-//     
-//     // Save the sender
-//     mLockStates[resource].mResponded.push_back(Agent (message.getSender().getName()));
-//     // Sort agents who responded
-//     mLockStates[resource].mResponded.sort();
-//     // We have got the lock, if all agents responded
-//     if(mLockStates[resource].mCommunicationPartners == mLockStates[resource].mResponded)
-//     {
-//         mLockStates[resource].mState = lock_state::LOCKED;
-//     }
+    // If we get a response, that likely means, we are interested in a resource
+    // Extract information
+    std::string resource;
+    extractInformation(message, resource, mLockStates[resource].mToken);
+    // We're defenitely holding the token now, if we're interested or not
+    mLockStates[resource].mHoldingToken = true;
+
+    // Following, a response is only relevant if we're "INTERESTED"
+    if(getLockState(resource) != lock_state::INTERESTED)
+    {
+        return;
+    }
+    // Now we can lock the resource
+    mLockStates[resource].mState = lock_state::LOCKED;
 }
 
 void SuzukiKasami::extractInformation(const acl::ACLMessage& message, std::string& resource, int& sequence_number)
@@ -238,9 +219,26 @@ void SuzukiKasami::extractInformation(const acl::ACLMessage& message, std::strin
     // archive and stream closed when destructors are called
 }
 
-void SuzukiKasami::sendToken(const std::string& receiver, const std::string& resource)
+void SuzukiKasami::sendToken(const fipa::acl::AgentID& receiver, const std::string& resource, const std::string& conversationID)
 {
+    // We mus unset holdingToken
+    mLockStates[resource].mHoldingToken = false;
+    
+    using namespace fipa::acl;
+    ACLMessage tokenMessage;
+    // An inform we're not interested in or done using the resource
+    tokenMessage.setPerformative(ACLMessage::INFORM);
 
+    // Add sender and receiver
+    tokenMessage.setSender(AgentID(mSelf.identifier));
+    tokenMessage.addReceiver(receiver);
+
+    tokenMessage.setConversationID(conversationID);
+    tokenMessage.setProtocol(protocolTxt[protocol]);
+    
+    // Our ressponse messages are in the format "RESOURCE_IDENTIFIER\nTOKEN"
+    tokenMessage.setContent(resource); // TODO + "\n" + serialized_token.
+    mOutgoingMessages.push_back(tokenMessage);
 }
 
 } // namespace distributed_locking
