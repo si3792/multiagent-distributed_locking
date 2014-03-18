@@ -3,8 +3,7 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/foreach.hpp>
 
-#include <distributed_locking/RicartAgrawala.hpp>
-#include <distributed_locking/SuzukiKasami.hpp>
+#include <distributed_locking/DLM.hpp>
 
 #include <iostream>
 
@@ -15,7 +14,7 @@ using namespace fipa::acl;
 /**
  * Simple test with 3 agents, where a1 requests, obtains, and releases the lock for a resource
  */
-BOOST_AUTO_TEST_CASE(basic_hold_and_release)
+BOOST_AUTO_TEST_CASE(ricart_agrawala_basic_hold_and_release)
 {
     // Create 3 Agents
     Agent a1 ("agent1"), a2 ("agent2"), a3 ("agent3");
@@ -69,9 +68,8 @@ BOOST_AUTO_TEST_CASE(basic_hold_and_release)
  * Two agents want the same resource. First, a2 wants it _later_ than a1, then a1 wants it while
  * a2 holds the lock.
  */
-BOOST_AUTO_TEST_CASE(two_agents_conflict)
+BOOST_AUTO_TEST_CASE(ricart_agrawala_two_agents_conflict)
 {
-    
     // Create 2 Agents
     Agent a1 ("agent1"), a2 ("agent2");
     // Create 2 DLMs
@@ -112,7 +110,7 @@ BOOST_AUTO_TEST_CASE(two_agents_conflict)
     // We release the lock and check it has been released
     dlm1->unlock(rsc1);
     BOOST_CHECK(dlm1->getLockState(rsc1) == lock_state::NOT_INTERESTED);
-    // Now agent1 should have a new outgoing message, than has been deferred earlier
+    // Now agent1 should have a new outgoing message, that has been deferred earlier
     BOOST_CHECK(dlm1->hasOutgoingMessages());
     ACLMessage dlm1rsp = dlm1->popNextOutgoingMessage();
     BOOST_CHECK(!dlm1->hasOutgoingMessages());
@@ -145,7 +143,7 @@ BOOST_AUTO_TEST_CASE(two_agents_conflict)
 /**
  * Two agents (one simulated) want one resource at the same time. The agent should revoke his interest.
  */
-BOOST_AUTO_TEST_CASE(same_time_conflict)
+BOOST_AUTO_TEST_CASE(ricart_agrawala_same_time_conflict)
 {
     // Create 2 Agents, a2 is simulated
     Agent a1 ("agent1"), a2 ("agent2");

@@ -5,7 +5,7 @@
 #include <fipa_acl/fipa_acl.h>
 
 #include <list>
-
+#include <vector>
 
 /** \mainpage Distributed Locking Mechanism
  *  This library provides an interface for a locking mechanism on distributed systems. This interface is given by the abstract class DLM.
@@ -95,6 +95,11 @@ public:
      * Constructor
      */
     DLM(const Agent& self);
+    
+    /**
+     * For a given Protocol, returns its textual value.
+     */
+    static std::string getProtocolTxt(protocol::Protocol protocol);
 
     /**
      * Sets the agent this DLM works with.
@@ -128,22 +133,25 @@ public:
      * Gets the lock state for a resource.
      */
     virtual lock_state::LockState getLockState(const std::string& resource);
+    /**
+     * Some algorithms require that an agent must know which resources he owns (at the beginning). Ownership is not equivalent to holding
+     * the resource's lock! The DLM implementation will not throw an exception as the other virtual methods, but instead simply do nothing.
+     */
+    virtual void setOwnedResources(const std::vector<std::string> resources);
 
     /**
      * This message is triggered by higher instance that uses this library, if a message is received. Sequential calls must be guaranteed.
      */
     virtual void onIncomingMessage(const fipa::acl::ACLMessage& message);
 
-
 protected:
-    // The agent represented by this DLM
-    Agent mSelf;
-
-    // List of outgoing messages.
-    std::list<fipa::acl::ACLMessage> mOutgoingMessages;
-    
     // A mapping between protocols and strings
     static std::map<protocol::Protocol, std::string> protocolTxt;
+    
+    // The agent represented by this DLM
+    Agent mSelf;
+    // List of outgoing messages.
+    std::list<fipa::acl::ACLMessage> mOutgoingMessages;
 };
 
 } // namespace distributed_locking

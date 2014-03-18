@@ -6,7 +6,6 @@
 #include <fipa_acl/fipa_acl.h>
 
 #include <deque>
-#include <list>
 #include <map>
 
 namespace fipa {
@@ -39,6 +38,11 @@ public:
      * Unlocks a resource, that must have been locked before
      */
     virtual void unlock(const std::string& resource);
+    /**
+     * This algorithm requires that an agent must know which resources he owns (at the beginning). Ownership is not equivalent to holding
+     * the resource's lock! This method should only be called once at the beginning.
+     */
+    virtual void setOwnedResources(const std::vector<std::string> resources);
     /**
      * Gets the lock state for a resource.
      */
@@ -77,7 +81,7 @@ private:
     struct ResourceLockState
     {
         // The token.
-        Token mToken; // FIXME when are tokens created!?
+        Token mToken;
         // Whether the token is currently held
         bool mHoldingToken;
         // Everyone to inform when locking

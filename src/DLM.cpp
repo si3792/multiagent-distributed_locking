@@ -35,6 +35,11 @@ DLM::DLM(const Agent& self)
 {
 }
 
+std::string DLM::getProtocolTxt(protocol::Protocol protocol)
+{
+    return protocolTxt[protocol];
+}
+
 const Agent& DLM::getSelf()
 {
     return mSelf;
@@ -59,6 +64,11 @@ fipa::acl::ACLMessage DLM::popNextOutgoingMessage()
 bool DLM::hasOutgoingMessages()
 {
     return mOutgoingMessages.size() != 0;
+}
+
+void DLM::setOwnedResources(const std::vector< std::string > resources)
+{
+    // Do not throw an exception, but don't do anything either.
 }
 
 void DLM::lock(const std::string& resource, const std::list< Agent >& agents)

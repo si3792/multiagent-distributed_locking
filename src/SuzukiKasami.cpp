@@ -235,5 +235,17 @@ void SuzukiKasami::sendToken(const fipa::acl::AgentID& receiver, const std::stri
     mOutgoingMessages.push_back(tokenMessage);
 }
 
+void SuzukiKasami::setOwnedResources(const std::vector< std::string > resources)
+{
+    // Instead of maintaining a list like the given one, this is saved
+    // in the holdingToken field for each resource.
+    // Thus, this method should only be called once at the beginning.
+    for(int i = 0; i < resources.size(); i++)
+    {
+        mLockStates[resources[i]].mHoldingToken = true;
+    }
+}
+
+
 } // namespace distributed_locking
 } // namespace fipa
