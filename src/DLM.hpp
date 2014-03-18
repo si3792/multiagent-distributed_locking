@@ -10,7 +10,48 @@
 /** \mainpage Distributed Locking Mechanism
  *  This library provides an interface for a locking mechanism on distributed systems. This interface is given by the abstract class DLM.
  *
- * Currently, the Ricart Agrawala algorithm ( http://en.wikipedia.org/wiki/Ricart-Agrawala_algorithm ) is the only implementation of that interface.
+ * Currently, the Ricart Agrawala algorithm ( http://en.wikipedia.org/wiki/Ricart-Agrawala_algorithm )
+ * and the Suzuki Kasami algorithm ( http://en.wikipedia.org/wiki/Suzuki-Kasami_algorithm ) are implemented.
+ * 
+ * \section Code
+ * The following code snippet shows the basic usage of this library. This is relevant implementing
+ * wrapping tasks, e.g., using Orogen. The task has to use the methods seen below and take care of the
+ * ACL message transportation.
+ * 
+ \verbatim
+    #include <distributed_locking/DLM.hpp>
+
+    using namespace fipa::distributed_locking;
+    
+    // Create an agent
+    fipa::Agent agent ("agent1");
+    // Create the DLM with the desired protocol using the factory method.
+    DLM* dlm = DLM::dlmFactory(protocol::RICART_AGRAWALA, a1);
+    
+    ...    
+    // Get outgoing messages:
+    if(dlm->hasOutgoingMessages())
+        ACLMessage msg = dlm->popNextOutgoingMessage();
+    
+    ...    
+    // Forward incoming messages
+    dlm->onIncomingMessage(otherMsg);
+    
+    ...
+    // Lock with a list of agents (using boost::assign::list_of)
+    dlm1->lock("resource_name", boost::assign::list_of(agent2)(agent3));
+    ...
+    // Check lock status
+    if(dlm->getLockState("resource_name") == lock_state::LOCKED) // Can be LOCKED, INTERESTED, or NOT_INTERESTED
+    {
+        // We are in the criticial section
+    }
+    ...
+    // Unlock
+    dlm->unlock("resource_name");
+    
+ \endverbatim
+ * 
  */
 
 namespace fipa {

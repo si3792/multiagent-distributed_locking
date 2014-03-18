@@ -4,6 +4,7 @@
 #include <boost/foreach.hpp>
 
 #include <distributed_locking/RicartAgrawala.hpp>
+#include <distributed_locking/SuzukiKasami.hpp>
 
 #include <iostream>
 

@@ -195,38 +195,25 @@ void SuzukiKasami::extractInformation(const acl::ACLMessage& message, std::strin
 }
 
 void SuzukiKasami::extractInformation(const acl::ACLMessage& message, std::string& resource, SuzukiKasami::Token& token)
-{
-    // Split by newline
-    std::vector<std::string> strs;
-    std::string s = message.getContent();
-    boost::split(strs, s, boost::is_any_of("\n"));
-
-    if(strs.size() != 2)
-    {
-        throw std::runtime_error("SuzukiKasami::extractInformation ACLMessage content malformed");
-    }
-    // Save the extracted information in the references
-    resource = strs[0];
-    
-    // FIXME -lboost_serialization missing?
-    
+{    
     // Restore the token
     // create and open an archive for input
-    std::stringstream ss(strs[1]);
-    //boost::archive::text_iarchive ia(ss);
+    std::stringstream ss(message.getContent());
+    boost::archive::text_iarchive ia(ss);
     // read state from archive
-    //ia >> token;
+    ia >> resource;
+    ia >> token;
     // archive and stream closed when destructors are called
 }
 
 void SuzukiKasami::sendToken(const fipa::acl::AgentID& receiver, const std::string& resource, const std::string& conversationID)
 {
-    // We mus unset holdingToken
+    // We must unset holdingToken
     mLockStates[resource].mHoldingToken = false;
     
     using namespace fipa::acl;
     ACLMessage tokenMessage;
-    // An inform we're not interested in or done using the resource
+    // Token messages use INFORM as performative
     tokenMessage.setPerformative(ACLMessage::INFORM);
 
     // Add sender and receiver
@@ -236,8 +223,15 @@ void SuzukiKasami::sendToken(const fipa::acl::AgentID& receiver, const std::stri
     tokenMessage.setConversationID(conversationID);
     tokenMessage.setProtocol(protocolTxt[protocol]);
     
-    // Our ressponse messages are in the format "RESOURCE_IDENTIFIER\nTOKEN"
-    tokenMessage.setContent(resource); // TODO + "\n" + serialized_token.
+    // Our response messages are in the format "BOOST_ARCHIVE(RESOURCE_IDENTIFIER, TOKEN)"
+    std::stringstream ss;
+    // save data to archive
+    boost::archive::text_oarchive oa(ss);
+    // write class instance to archive
+    oa << resource;
+    oa << mLockStates[resource].mToken;
+    tokenMessage.setContent(ss.str());
+    
     mOutgoingMessages.push_back(tokenMessage);
 }
 
