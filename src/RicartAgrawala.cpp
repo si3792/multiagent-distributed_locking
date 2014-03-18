@@ -89,6 +89,22 @@ void RicartAgrawala::onIncomingMessage(const fipa::acl::ACLMessage& message)
     {
         return;
     }
+    // Abort if we're not a receiver
+    AgentIDList receivers = message.getAllReceivers();
+    bool foundUs = false;
+    for(int i = 0; i < receivers.size(); i++)
+    {
+        AgentID agentID = receivers[i];
+        if(agentID.getName() == mSelf.identifier)
+        {
+            foundUs = true;
+            break;
+        }
+    }
+    if(!foundUs)
+    {
+        return;
+    }
     
     // Check message type
     if(ACLMessage::performativeFromString(message.getPerformative()) == ACLMessage::REQUEST)
