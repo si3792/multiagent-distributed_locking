@@ -7,15 +7,100 @@
 
 #include <iostream>
 
+
 using namespace fipa;
 using namespace fipa::distributed_locking;
 using namespace fipa::acl;
+
+/**
+ * Forwards all messages that currently await. FIXME to a new file
+ */
+void forwardAllMessagesRA(std::list<DLM*> dlms)
+{
+    for(std::list<DLM*>::const_iterator it = dlms.begin(); it != dlms.end(); it++)
+    {
+        while((*it)->hasOutgoingMessages())
+        {
+            ACLMessage msg = (*it)->popNextOutgoingMessage();
+            for(std::list<DLM*>::const_iterator it2 = dlms.begin(); it2 != dlms.end(); it2++)
+            {
+                (*it2)->onIncomingMessage(msg);
+            }
+        }
+    }
+}
+
+/**
+ * Test taken from the ruby script.
+ */
+BOOST_AUTO_TEST_CASE(ricart_agrawala_test_from_ruby_script)
+{
+    std::cout << "ricart_agrawala_test_from_ruby_script" << std::endl;
+    // Create 3 Agents
+    Agent a1 ("agent1"), a2 ("agent2"), a3 ("agent3");
+    // Create 3 DLMs
+    DLM* dlm1 = DLM::dlmFactory(protocol::RICART_AGRAWALA, a1);
+    DLM* dlm2 = DLM::dlmFactory(protocol::RICART_AGRAWALA, a2);
+    DLM* dlm3 = DLM::dlmFactory(protocol::RICART_AGRAWALA, a3);
+
+    // Define critical resource
+    std::string rsc1 = "resource";
+    // Agent1 owns the resource (unnecesary in RA)
+    dlm1->setOwnedResources(boost::assign::list_of(rsc1));
+
+    // Now we lock
+    dlm1->lock(rsc1, boost::assign::list_of(a2)(a3));
+    forwardAllMessagesRA(boost::assign::list_of(dlm1)(dlm2)(dlm3));
+
+    // And check it is being locked
+    BOOST_CHECK(dlm1->getLockState(rsc1) == lock_state::LOCKED);
+
+    // Agent two tries to lock
+    dlm2->lock(rsc1, boost::assign::list_of(a1)(a3));
+    forwardAllMessagesRA(boost::assign::list_of(dlm2)(dlm1)(dlm3));
+    // Agent 1 release
+    dlm1->unlock(rsc1);
+    forwardAllMessagesRA(boost::assign::list_of(dlm1)(dlm2)(dlm3));
+
+    // Check it is being locked by a2 now
+    BOOST_CHECK(dlm2->getLockState(rsc1) == lock_state::LOCKED);
+
+    // A3 locks, sleep, A1 locks
+    dlm3->lock(rsc1, boost::assign::list_of(a1)(a2));
+    forwardAllMessagesRA(boost::assign::list_of(dlm3)(dlm2)(dlm1));
+    dlm1->lock(rsc1, boost::assign::list_of(a2)(a3));
+    forwardAllMessagesRA(boost::assign::list_of(dlm1)(dlm2)(dlm3));
+
+    // Unlock and see that he is NOT_INTERESTED
+    dlm2->unlock(rsc1);
+    forwardAllMessagesRA(boost::assign::list_of(dlm2)(dlm1)(dlm3));
+    BOOST_CHECK(dlm2->getLockState(rsc1) == lock_state::NOT_INTERESTED);
+
+    // Check it is being locked by a3 now
+    BOOST_CHECK(dlm3->getLockState(rsc1) == lock_state::LOCKED);
+
+    // Agent 3 release
+    dlm3->unlock(rsc1);
+    forwardAllMessagesRA(boost::assign::list_of(dlm3)(dlm2)(dlm1));
+
+    // Check it is being locked by a1 now
+    BOOST_CHECK(dlm1->getLockState(rsc1) == lock_state::LOCKED);
+    // Agent 1 releasese
+    dlm1->unlock(rsc1);
+    forwardAllMessagesRA(boost::assign::list_of(dlm1)(dlm2)(dlm3));
+
+    // Check no one is interested any more
+    BOOST_CHECK(dlm1->getLockState(rsc1) == lock_state::NOT_INTERESTED);
+    BOOST_CHECK(dlm2->getLockState(rsc1) == lock_state::NOT_INTERESTED);
+    BOOST_CHECK(dlm3->getLockState(rsc1) == lock_state::NOT_INTERESTED);
+}
 
 /**
  * Simple test with 3 agents, where a1 requests, obtains, and releases the lock for a resource
  */
 BOOST_AUTO_TEST_CASE(ricart_agrawala_basic_hold_and_release)
 {
+    std::cout << "ricart_agrawala_basic_hold_and_release" << std::endl;
     // Create 3 Agents
     Agent a1 ("agent1"), a2 ("agent2"), a3 ("agent3");
     // Create 3 DLMs
@@ -25,7 +110,7 @@ BOOST_AUTO_TEST_CASE(ricart_agrawala_basic_hold_and_release)
 
     // Define critical resource
     std::string rsc1 = "rsc1";
-    
+
     // dlm1 should not be interested in the resource.
     BOOST_CHECK(dlm1->getLockState(rsc1) == lock_state::NOT_INTERESTED);
 
@@ -33,7 +118,7 @@ BOOST_AUTO_TEST_CASE(ricart_agrawala_basic_hold_and_release)
     dlm1->lock(rsc1, boost::assign::list_of(a2)(a3));
     // He should be INTERESTED now
     BOOST_CHECK(dlm1->getLockState(rsc1) == lock_state::INTERESTED);
-    
+
     // OutgoingMessages should contain one messages (2 receivers)
     BOOST_CHECK(dlm1->hasOutgoingMessages());
     ACLMessage dlm1msg = dlm1->popNextOutgoingMessage();
@@ -70,6 +155,7 @@ BOOST_AUTO_TEST_CASE(ricart_agrawala_basic_hold_and_release)
  */
 BOOST_AUTO_TEST_CASE(ricart_agrawala_two_agents_conflict)
 {
+    std::cout << "ricart_agrawala_two_agents_conflict" << std::endl;
     // Create 2 Agents
     Agent a1 ("agent1"), a2 ("agent2");
     // Create 2 DLMs
@@ -78,14 +164,14 @@ BOOST_AUTO_TEST_CASE(ricart_agrawala_two_agents_conflict)
 
     // Define critical resource
     std::string rsc1 = "rsc1";
-    
+
     // Let dlm1 lock rsc1
     dlm1->lock(rsc1, boost::assign::list_of(a2));
     // OutgoingMessages should contain one messages
     BOOST_CHECK(dlm1->hasOutgoingMessages());
     ACLMessage dlm1msg = dlm1->popNextOutgoingMessage();
     BOOST_CHECK(!dlm1->hasOutgoingMessages());
-    
+
     // Now (later) a2 tries to lock the same resource
     dlm2->lock(rsc1, boost::assign::list_of(a1));
     // OutgoingMessages should contain one messages
@@ -96,7 +182,7 @@ BOOST_AUTO_TEST_CASE(ricart_agrawala_two_agents_conflict)
     // Lets foward both mails
     dlm2->onIncomingMessage(dlm1msg);
     dlm1->onIncomingMessage(dlm2msg);
-    
+
     // Only a2 should have responded by now
     BOOST_CHECK(dlm2->hasOutgoingMessages());
     BOOST_CHECK(!dlm1->hasOutgoingMessages());
@@ -114,24 +200,24 @@ BOOST_AUTO_TEST_CASE(ricart_agrawala_two_agents_conflict)
     BOOST_CHECK(dlm1->hasOutgoingMessages());
     ACLMessage dlm1rsp = dlm1->popNextOutgoingMessage();
     BOOST_CHECK(!dlm1->hasOutgoingMessages());
-    
+
     // We forward it
     dlm2->onIncomingMessage(dlm1rsp);
     // Now, agent2 should hold the lock
     BOOST_CHECK(dlm2->getLockState(rsc1) == lock_state::LOCKED);
-    
+
     // a1 requests the same resource again
     dlm1->lock(rsc1, boost::assign::list_of(a2));
     // Let us forward his message directly
     dlm2->onIncomingMessage(dlm1->popNextOutgoingMessage());
     // a2 should defer the response
     BOOST_CHECK(!dlm2->hasOutgoingMessages());
-    
+
     // Now a2 releases the lock, and should have a new outgoing message, which we forward
     dlm2->unlock(rsc1);
     BOOST_CHECK(dlm2->getLockState(rsc1) == lock_state::NOT_INTERESTED);
     dlm1->onIncomingMessage(dlm2->popNextOutgoingMessage());
-    
+
     // Finally a1 holds the lock again, and releases it again.
     BOOST_CHECK(dlm1->getLockState(rsc1) == lock_state::LOCKED);
     dlm1->unlock(rsc1);
@@ -145,6 +231,7 @@ BOOST_AUTO_TEST_CASE(ricart_agrawala_two_agents_conflict)
  */
 BOOST_AUTO_TEST_CASE(ricart_agrawala_same_time_conflict)
 {
+    std::cout << "ricart_agrawala_same_time_conflict" << std::endl;
     // Create 2 Agents, a2 is simulated
     Agent a1 ("agent1"), a2 ("agent2");
     // Create 1 DLM
@@ -152,15 +239,15 @@ BOOST_AUTO_TEST_CASE(ricart_agrawala_same_time_conflict)
 
     // Define critical resource
     std::string rsc1 = "rsc1";
-    
+
     // Let dlm1 lock rsc1
     dlm1->lock(rsc1, boost::assign::list_of(a2));
     // Now he should be interested
     BOOST_CHECK(dlm1->getLockState(rsc1) == lock_state::INTERESTED);
-    
+
     // Get the outgoing message
     ACLMessage dlm1msg = dlm1->popNextOutgoingMessage();
-    
+
     // Simulated agent 2 has basically the same message. He "revoked" his interest after
     // "receiving" dlm1msg
     ACLMessage simMsg;
@@ -170,7 +257,7 @@ BOOST_AUTO_TEST_CASE(ricart_agrawala_same_time_conflict)
     simMsg.addReceiver(dlm1msg.getSender());
     simMsg.setConversationID(a2.identifier + "0");
     simMsg.setProtocol(dlm1msg.getProtocol());
-    
+
     // Send this message to a1
     dlm1->onIncomingMessage(simMsg);
     // Now he shouldn't be interested any more

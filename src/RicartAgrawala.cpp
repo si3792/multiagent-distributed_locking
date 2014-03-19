@@ -82,7 +82,7 @@ lock_state::LockState RicartAgrawala::getLockState(const std::string& resource)
 }
 
 void RicartAgrawala::onIncomingMessage(const fipa::acl::ACLMessage& message)
-{
+{    
     using namespace fipa::acl;
     // Check if it's the right protocol
     if(message.getProtocol() != protocolTxt[protocol])
@@ -137,16 +137,20 @@ void RicartAgrawala::handleIncomingRequest(const fipa::acl::ACLMessage& message)
     response.setConversationID(message.getConversationID());
     response.setProtocol(protocolTxt[protocol]);
     
+    std::cout << mSelf.identifier << " got request message for " << resource << " from " << message.getSender().getName() << ". ";
+    
     // We send this message now, if we don't hold the resource and are not interested or have been slower. Otherwise we defer it.
     lock_state::LockState state = getLockState(resource);
     if(state == lock_state::NOT_INTERESTED || (state == lock_state::INTERESTED && otherTime < mLockStates[resource].mInterestTime))
     {
+        std::cout << "Answering now." << std::endl;
         // Our response messages are in the format "TIME\nRESOURCE_IDENTIFIER"
         response.setContent(base::Time::now().toString() +"\n" + resource);
         mOutgoingMessages.push_back(response);
     }
     else if(state == lock_state::INTERESTED && otherTime == mLockStates[resource].mInterestTime)
     {
+        std::cout << "SAME TIMESTAMP." << std::endl;
         // If it should happen that 2 agents have the same timestamp, the interest is revoked, and they have to call lock() again
         // The following is identical to unlock(), except that the prerequisite of being LOCKED is not met
         mLockStates[resource].mState = lock_state::NOT_INTERESTED;
@@ -155,6 +159,7 @@ void RicartAgrawala::handleIncomingRequest(const fipa::acl::ACLMessage& message)
     }
     else
     {
+        std::cout << "Answering later." << std::endl;
         // We will have to add the timestamp later!
         response.setContent(resource);
         mLockStates[resource].mDeferredMessages.push_back(response);
@@ -163,6 +168,7 @@ void RicartAgrawala::handleIncomingRequest(const fipa::acl::ACLMessage& message)
 
 void RicartAgrawala::handleIncomingResponse(const fipa::acl::ACLMessage& message)
 {
+    std::cout << mSelf.identifier << " got response message." << std::endl;
     // If we get a response, that likely means, we are interested in a resource
     base::Time otherTime;
     std::string resource;
@@ -178,6 +184,14 @@ void RicartAgrawala::handleIncomingResponse(const fipa::acl::ACLMessage& message
     mLockStates[resource].mResponded.push_back(Agent (message.getSender().getName()));
     // Sort agents who responded
     mLockStates[resource].mResponded.sort();
+    // FIXME
+    std::cout << mSelf.identifier << " got responses for " << resource << " from: ";
+    for(std::list<fipa::Agent>::const_iterator it = mLockStates[resource].mResponded.begin(); it != mLockStates[resource].mResponded.end(); it++)
+    {
+        std::cout << it->identifier << " ";
+    }
+    std::cout << std::endl;
+    
     // We have got the lock, if all agents responded
     if(mLockStates[resource].mCommunicationPartners == mLockStates[resource].mResponded)
     {
@@ -207,6 +221,7 @@ void RicartAgrawala::sendAllDeferredMessages(const std::string& resource)
         it != mLockStates[resource].mDeferredMessages.end(); it++)
     {
         fipa::acl::ACLMessage msg = *it;
+        std::cout << mSelf.identifier << " send deferred response for " << resource << " to " << msg.getAllReceivers().front().getName() << std::endl;
         // Include timestamp
         msg.setContent(base::Time::now().toString() +"\n" + msg.getContent());
         mOutgoingMessages.push_back(msg);

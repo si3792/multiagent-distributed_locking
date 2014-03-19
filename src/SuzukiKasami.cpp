@@ -61,7 +61,7 @@ void SuzukiKasami::lock(const std::string& resource, const std::list<Agent>& age
     // Set and increase conversation ID
     message.setConversationID(mSelf.identifier + boost::lexical_cast<std::string>(mConversationIDnum++));
     message.setProtocol(protocolTxt[protocol]);
-
+    
     // Add to outgoing messages
     mOutgoingMessages.push_back(message);
     
@@ -181,7 +181,11 @@ void SuzukiKasami::handleIncomingResponse(const fipa::acl::ACLMessage& message)
     // If we get a response, that likely means, we are interested in a resource
     // Extract information
     std::string resource;
-    extractInformation(message, resource, mLockStates[resource].mToken);
+    Token token;
+    // This HAS to be done in two steps, as resource is not known before extractInformation return!
+    extractInformation(message, resource, token);
+    mLockStates[resource].mToken = token;
+    
     // We're defenitely holding the token now, if we're interested or not
     mLockStates[resource].mHoldingToken = true;
 
