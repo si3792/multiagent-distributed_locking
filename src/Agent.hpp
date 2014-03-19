@@ -41,6 +41,4 @@ namespace fipa {
   };
 } // namespace fipa
 
-
-
 #endif // DISTRIBUTED_LOCKING_AGENT_HPP
