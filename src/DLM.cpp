@@ -13,14 +13,14 @@ std::map<protocol::Protocol, std::string> DLM::protocolTxt = boost::assign::map_
     (protocol::RICART_AGRAWALA, "ricart_agrawala")
     (protocol::SUZUKI_KASAMI, "suzuki_kasami");
     
-DLM* DLM::dlmFactory(protocol::Protocol implementation, const Agent& self)
+DLM* DLM::dlmFactory(fipa::distributed_locking::protocol::Protocol implementation, const fipa::Agent& self, const std::vector< std::string >& resources)
 {
     switch(implementation)
     {
         case protocol::RICART_AGRAWALA:
-            return new RicartAgrawala(self);
+            return new RicartAgrawala(self, resources);
         case protocol::SUZUKI_KASAMI:
-            return new SuzukiKasami(self);
+            return new SuzukiKasami(self, resources);
         default:
             return NULL;
     }
@@ -30,8 +30,9 @@ DLM::DLM()
 {
 }
 
-DLM::DLM(const Agent& self)
+DLM::DLM(const Agent& self, const std::vector<std::string>& resources)
     : mSelf(self)
+    , mOwnedResources(resources)
 {
 }
 
@@ -64,11 +65,6 @@ fipa::acl::ACLMessage DLM::popNextOutgoingMessage()
 bool DLM::hasOutgoingMessages()
 {
     return mOutgoingMessages.size() != 0;
-}
-
-void DLM::setOwnedResources(const std::vector< std::string > resources)
-{
-    // Do not throw an exception, but don't do anything either.
 }
 
 void DLM::lock(const std::string& resource, const std::list< Agent >& agents)

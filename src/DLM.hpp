@@ -85,16 +85,16 @@ public:
     /**
      * Factory method to get a pointer to a certain DLM implementation
      */
-    static DLM* dlmFactory(fipa::distributed_locking::protocol::Protocol implementation, const fipa::Agent& self);
+    static DLM* dlmFactory(fipa::distributed_locking::protocol::Protocol implementation, const fipa::Agent& self, const std::vector<std::string>& resources);
     
     /**
      * Default constructor
      */
     DLM();
     /**
-     * Constructor
+     * Constructor with the agent to manage and a list of physically owned resources.
      */
-    DLM(const Agent& self);
+    DLM(const Agent& self, const std::vector<std::string>& resources);
     
     /**
      * For a given Protocol, returns its textual value.
@@ -133,11 +133,6 @@ public:
      * Gets the lock state for a resource.
      */
     virtual lock_state::LockState getLockState(const std::string& resource);
-    /**
-     * Some algorithms require that an agent must know which resources he owns (at the beginning). Ownership is not equivalent to holding
-     * the resource's lock! The DLM implementation will not throw an exception as the other virtual methods, but instead simply do nothing.
-     */
-    virtual void setOwnedResources(const std::vector<std::string> resources);
 
     /**
      * This message is triggered by higher instance that uses this library, if a message is received. Sequential calls must be guaranteed.
@@ -152,6 +147,11 @@ protected:
     Agent mSelf;
     // List of outgoing messages.
     std::list<fipa::acl::ACLMessage> mOutgoingMessages;
+    
+    // The physically owned resources
+    std::vector<std::string> mOwnedResources;
+    // The (logical) lock holders of the owned resources
+    std::map<std::string, std::string> mLockHolders;
 };
 
 } // namespace distributed_locking

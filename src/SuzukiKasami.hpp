@@ -28,7 +28,7 @@ public:
     /**
      * Constructor
      */
-    SuzukiKasami(const Agent& self);
+    SuzukiKasami(const Agent& self, const std::vector<std::string>& resources);
 
     /**
      * Tries to lock a resource. Subsequently, isLocked() must be called to check the status.
@@ -38,11 +38,6 @@ public:
      * Unlocks a resource, that must have been locked before
      */
     virtual void unlock(const std::string& resource);
-    /**
-     * This algorithm requires that an agent must know which resources he owns (at the beginning). Ownership is not equivalent to holding
-     * the resource's lock! This method should only be called once at the beginning.
-     */
-    virtual void setOwnedResources(const std::vector<std::string> resources);
     /**
      * Gets the lock state for a resource.
      */

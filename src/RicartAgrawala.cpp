@@ -16,8 +16,8 @@ RicartAgrawala::RicartAgrawala()
 {
 }
 
-RicartAgrawala::RicartAgrawala(const Agent& self) 
-    : DLM(self)
+RicartAgrawala::RicartAgrawala(const fipa::Agent& self, const std::vector< std::string >& resources) 
+    : DLM(self, resources)
 {
 }
 

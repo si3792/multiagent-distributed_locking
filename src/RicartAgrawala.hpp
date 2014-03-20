@@ -29,7 +29,7 @@ public:
     /**
      * Constructor
      */
-    RicartAgrawala(const Agent& self);
+    RicartAgrawala(const Agent& self, const std::vector<std::string>& resources);
 
     /**
      * Tries to lock a resource. Subsequently, isLocked() must be called to check the status.

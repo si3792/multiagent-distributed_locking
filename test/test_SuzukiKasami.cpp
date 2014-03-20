@@ -21,15 +21,16 @@ BOOST_AUTO_TEST_CASE(suzuki_kasami_test_from_ruby_script)
     std::cout << "suzuki_kasami_test_from_ruby_script" << std::endl;
     // Create 3 Agents
     Agent a1 ("agent1"), a2 ("agent2"), a3 ("agent3");
-    // Create 3 DLMs
-    DLM* dlm1 = DLM::dlmFactory(protocol::SUZUKI_KASAMI, a1);
-    DLM* dlm2 = DLM::dlmFactory(protocol::SUZUKI_KASAMI, a2);
-    DLM* dlm3 = DLM::dlmFactory(protocol::SUZUKI_KASAMI, a3);
-
     // Define critical resource
     std::string rsc1 = "resource";
-    // Agent1 owns the resource (unnecesary in RA)
-    dlm1->setOwnedResources(boost::assign::list_of(rsc1));
+    // and a vector containing it
+    std::vector<std::string> rscs;
+    rscs.push_back(rsc1);
+    
+    // Create 3 DLMs
+    DLM* dlm1 = DLM::dlmFactory(protocol::SUZUKI_KASAMI, a1, rscs);
+    DLM* dlm2 = DLM::dlmFactory(protocol::SUZUKI_KASAMI, a2, std::vector<std::string>());
+    DLM* dlm3 = DLM::dlmFactory(protocol::SUZUKI_KASAMI, a3, std::vector<std::string>());
 
     // Now we lock
     dlm1->lock(rsc1, boost::assign::list_of(a2)(a3));
@@ -88,15 +89,16 @@ BOOST_AUTO_TEST_CASE(suzuki_kasami_basic_hold_and_release)
     std::cout << "suzuki_kasami_basic_hold_and_release" << std::endl;
     // Create 3 Agents
     Agent a1 ("agent1"), a2 ("agent2"), a3 ("agent3");
-    // Create 3 DLMs
-    DLM* dlm1 = DLM::dlmFactory(protocol::SUZUKI_KASAMI, a1);
-    DLM* dlm2 = DLM::dlmFactory(protocol::SUZUKI_KASAMI, a2);
-    DLM* dlm3 = DLM::dlmFactory(protocol::SUZUKI_KASAMI, a3);
-
     // Define critical resource
-    std::string rsc1 = "rsc1";
-    // Let a2 hold it at the beginning
-    dlm2->setOwnedResources(boost::assign::list_of(rsc1));
+    std::string rsc1 = "resource";
+    // and a vector containing it
+    std::vector<std::string> rscs;
+    rscs.push_back(rsc1);
+    
+    // Create 3 DLMs
+    DLM* dlm1 = DLM::dlmFactory(protocol::SUZUKI_KASAMI, a1, std::vector<std::string>());
+    DLM* dlm2 = DLM::dlmFactory(protocol::SUZUKI_KASAMI, a2, rscs);
+    DLM* dlm3 = DLM::dlmFactory(protocol::SUZUKI_KASAMI, a3, std::vector<std::string>());
     
     // dlm1 should not be interested in the resource.
     BOOST_CHECK(dlm1->getLockState(rsc1) == lock_state::NOT_INTERESTED);
@@ -150,14 +152,15 @@ BOOST_AUTO_TEST_CASE(suzuki_kasami_two_agents_conflict)
     std::cout << "suzuki_kasami_two_agents_conflict" << std::endl;
     // Create 2 Agents
     Agent a1 ("agent1"), a2 ("agent2");
-    // Create 2 DLMs
-    DLM* dlm1 = DLM::dlmFactory(protocol::SUZUKI_KASAMI, a1);
-    DLM* dlm2 = DLM::dlmFactory(protocol::SUZUKI_KASAMI, a2);
-
     // Define critical resource
-    std::string rsc1 = "rsc1";
-    // Let a1 hold it at the beginning
-    dlm1->setOwnedResources(boost::assign::list_of(rsc1));
+    std::string rsc1 = "resource";
+    // and a vector containing it
+    std::vector<std::string> rscs;
+    rscs.push_back(rsc1);
+    
+    // Create 2 DLMs
+    DLM* dlm1 = DLM::dlmFactory(protocol::SUZUKI_KASAMI, a1, rscs);
+    DLM* dlm2 = DLM::dlmFactory(protocol::SUZUKI_KASAMI, a2, std::vector<std::string>());
     
     // Let dlm1 lock rsc1
     dlm1->lock(rsc1, boost::assign::list_of(a2));
