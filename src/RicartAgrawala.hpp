@@ -44,7 +44,8 @@ public:
      */
     virtual lock_state::LockState getLockState(const std::string& resource);
     /**
-     * This message is triggered by the wrapping Orogen task, if a message is received
+     * This message is triggered by the higher instance that uses this library, if a message is received. Sequential calls must be guaranteed.
+     * Subclasses MUST call the base implementation, as there are also direct DLM messages not belonging to any underlying protocol.
      */
     virtual void onIncomingMessage(const fipa::acl::ACLMessage& message);
 
@@ -67,8 +68,6 @@ private:
         base::Time mInterestTime;
     };
     
-    // Current number for conversation IDs
-    int mConversationIDnum;
     // All resources mapped to the their ResourceLockStates
     std::map<std::string, ResourceLockState> mLockStates;
 

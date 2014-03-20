@@ -25,7 +25,7 @@ SuzukiKasami::SuzukiKasami(const fipa::Agent& self, const std::vector< std::stri
     : DLM(self, resources)
 {
     // Also hold the token at the beginning for all physically owned resources
-    for(int i = 0; i < resources.size(); i++)
+    for(unsigned int i = 0; i < resources.size(); i++)
     {
         mLockStates[resources[i]].mHoldingToken = true;
     }
@@ -43,6 +43,8 @@ void SuzukiKasami::lock(const std::string& resource, const std::list<Agent>& age
     if(mLockStates[resource].mHoldingToken)
     {
         mLockStates[resource].mState = lock_state::LOCKED;
+        // Let the base class know we obtained the lock
+        lockObtained(resource);
         return;
     }
     
@@ -77,6 +79,8 @@ void SuzukiKasami::lock(const std::string& resource, const std::list<Agent>& age
     mLockStates[resource].mState = lock_state::INTERESTED;
 
     // Now the token must be obtained before we can enter the critical section
+    // Let the base class know we requested the lock
+    lockRequested(resource, agents);
 }
 
 void SuzukiKasami::unlock(const std::string& resource)
@@ -112,6 +116,9 @@ void SuzukiKasami::unlock(const std::string& resource)
             sendToken(fipa::acl::AgentID (agentID), resource, mSelf.identifier + boost::lexical_cast<std::string>(mConversationIDnum++));
         }
         // Else keep token
+        
+        // Let the base class know we released the lock
+        lockReleased(resource);
     }
 }
 
@@ -122,16 +129,19 @@ lock_state::LockState SuzukiKasami::getLockState(const std::string& resource)
 
 void SuzukiKasami::onIncomingMessage(const fipa::acl::ACLMessage& message)
 {
-    using namespace fipa::acl;
+    // Call base method as required
+    DLM::onIncomingMessage(message);
+    
     // Check if it's the right protocol
     if(message.getProtocol() != protocolTxt[protocol])
     {
         return;
     }
+    using namespace fipa::acl;
     // Abort if we're not a receiver
     AgentIDList receivers = message.getAllReceivers();
     bool foundUs = false;
-    for(int i = 0; i < receivers.size(); i++)
+    for(unsigned int i = 0; i < receivers.size(); i++)
     {
         AgentID agentID = receivers[i];
         if(agentID.getName() == mSelf.identifier)
@@ -201,6 +211,9 @@ void SuzukiKasami::handleIncomingResponse(const fipa::acl::ACLMessage& message)
     }
     // Now we can lock the resource
     mLockStates[resource].mState = lock_state::LOCKED;
+    
+    // Let the base class know we obtained the lock
+    lockObtained(resource);
 }
 
 void SuzukiKasami::extractInformation(const acl::ACLMessage& message, std::string& resource, int& sequence_number)

@@ -62,6 +62,8 @@ void RicartAgrawala::lock(const std::string& resource, const std::list<Agent>& a
     mLockStates[resource].mInterestTime = time;
 
     // Now a response from each agent must be received before we can enter the critical section
+    // Let the base class know we requested the lock
+    lockRequested(resource, agents);
 }
 
 void RicartAgrawala::unlock(const std::string& resource)
@@ -73,6 +75,9 @@ void RicartAgrawala::unlock(const std::string& resource)
         mLockStates[resource].mState = lock_state::NOT_INTERESTED;
         // Send all deferred messages for that resource
         sendAllDeferredMessages(resource);
+        
+        // Let the base class know we released the lock
+        lockReleased(resource);
     }
 }
 
@@ -82,17 +87,20 @@ lock_state::LockState RicartAgrawala::getLockState(const std::string& resource)
 }
 
 void RicartAgrawala::onIncomingMessage(const fipa::acl::ACLMessage& message)
-{    
-    using namespace fipa::acl;
+{
+    // Call base method as required
+    DLM::onIncomingMessage(message);
+    
     // Check if it's the right protocol
     if(message.getProtocol() != protocolTxt[protocol])
     {
         return;
     }
+    using namespace fipa::acl;
     // Abort if we're not a receiver
     AgentIDList receivers = message.getAllReceivers();
     bool foundUs = false;
-    for(int i = 0; i < receivers.size(); i++)
+    for(unsigned int i = 0; i < receivers.size(); i++)
     {
         AgentID agentID = receivers[i];
         if(agentID.getName() == mSelf.identifier)
@@ -183,6 +191,9 @@ void RicartAgrawala::handleIncomingResponse(const fipa::acl::ACLMessage& message
     if(mLockStates[resource].mCommunicationPartners == mLockStates[resource].mResponded)
     {
         mLockStates[resource].mState = lock_state::LOCKED;
+        
+        // Let the base class know we obtained the lock
+        lockObtained(resource);
     }
 }
 

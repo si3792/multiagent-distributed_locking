@@ -81,7 +81,7 @@ enum Protocol { RICART_AGRAWALA = 0, SUZUKI_KASAMI,
  */
 class DLM
 {
-public:
+public:    
     /**
      * Factory method to get a pointer to a certain DLM implementation
      */
@@ -91,10 +91,6 @@ public:
      * Default constructor
      */
     DLM();
-    /**
-     * Constructor with the agent to manage and a list of physically owned resources.
-     */
-    DLM(const Agent& self, const std::vector<std::string>& resources);
     
     /**
      * For a given Protocol, returns its textual value.
@@ -135,23 +131,48 @@ public:
     virtual lock_state::LockState getLockState(const std::string& resource);
 
     /**
-     * This message is triggered by higher instance that uses this library, if a message is received. Sequential calls must be guaranteed.
+     * This message is triggered by the higher instance that uses this library, if a message is received. Sequential calls must be guaranteed.
+     * Subclasses MUST call the base implementation, as there are also direct DLM messages not belonging to any underlying protocol.
      */
     virtual void onIncomingMessage(const fipa::acl::ACLMessage& message);
 
 protected:
     // A mapping between protocols and strings
     static std::map<protocol::Protocol, std::string> protocolTxt;
+    // The protocol string.
+    static const std::string dlmProtocolStr;
+    
+    /**
+     * Protected constructor with the agent to manage and a list of physically owned resources. TODO protected
+     */
+    DLM(const Agent& self, const std::vector<std::string>& resources);
     
     // The agent represented by this DLM
     Agent mSelf;
     // List of outgoing messages.
     std::list<fipa::acl::ACLMessage> mOutgoingMessages;
+    // Current number for conversation IDs
+    int mConversationIDnum;
     
-    // The physically owned resources
-    std::vector<std::string> mOwnedResources;
-    // The (logical) lock holders of the owned resources
+    // The physically owned resources of all agents known. Maps resource->agent TODO
+    std::map<std::string, std::string> mOwnedResources;
+    // The (logical) lock holders of the owned resources. Maps resource->agent
     std::map<std::string, std::string> mLockHolders;
+    /**
+     * This method MUST be called by implementing subclasses, when the lock is requested.
+     * Like this we can keep track of physically owned resources of other agents.
+     */
+    void lockRequested(const std::string& resource, const std::list<Agent>& agents);
+    /**
+     * This method MUST be called by implementing subclasses, when the lock is obtained.
+     * Like this we can keep track of logical owners of our own resources.
+     */
+    void lockObtained(const std::string& resource);
+    /**
+     * This method MUST be called by implementing subclasses, when the lock is released.
+     * Like this we can keep track of logical owners of our own resources.
+     */
+    void lockReleased(const std::string& resource);
 };
 
 } // namespace distributed_locking
