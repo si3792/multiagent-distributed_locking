@@ -66,6 +66,8 @@ private:
         lock_state::LockState mState;
         // The time we sent our request messages
         base::Time mInterestTime;
+        // The conversationID, which is relevant if we're interested and get a failure message back
+        std::string mConversationID;
     };
     
     // All resources mapped to the their ResourceLockStates
@@ -79,6 +81,14 @@ private:
      * Handles an incoming response
      */
     void handleIncomingResponse(const fipa::acl::ACLMessage& message);
+    /**
+     * Handles an incoming failure
+     */
+    void handleIncomingFailure(const fipa::acl::ACLMessage& message);
+    /**
+     * Actually handles an incoming failure.
+     */
+    void handleIncomingFailure(const std::string& resource, std::string intendedReceiver);
     /**
      * Extracts the information from the content and saves it in the passed references
      */

@@ -66,7 +66,7 @@ void SuzukiKasami::lock(const std::string& resource, const std::list<Agent>& age
         message.addReceiver(AgentID(it->identifier));
     }
     // Set and increase conversation ID
-    message.setConversationID(mSelf.identifier + boost::lexical_cast<std::string>(mConversationIDnum++));
+    message.setConversationID(mSelf.identifier + "_" + boost::lexical_cast<std::string>(mConversationIDnum++));
     message.setProtocol(protocolTxt[protocol]);
     
     // Add to outgoing messages
@@ -77,6 +77,7 @@ void SuzukiKasami::lock(const std::string& resource, const std::list<Agent>& age
     // Sort agents
     mLockStates[resource].mCommunicationPartners.sort();
     mLockStates[resource].mState = lock_state::INTERESTED;
+    mLockStates[resource].mConversationID = message.getConversationID();
 
     // Now the token must be obtained before we can enter the critical section
     // Let the base class know we requested the lock
@@ -113,7 +114,7 @@ void SuzukiKasami::unlock(const std::string& resource)
         {
             std::string agentID = mLockStates[resource].mToken.mQueue.front();
             mLockStates[resource].mToken.mQueue.pop_front();
-            sendToken(fipa::acl::AgentID (agentID), resource, mSelf.identifier + boost::lexical_cast<std::string>(mConversationIDnum++));
+            sendToken(fipa::acl::AgentID (agentID), resource, mSelf.identifier + "_" + boost::lexical_cast<std::string>(mConversationIDnum++));
         }
         // Else keep token
         
@@ -163,6 +164,10 @@ void SuzukiKasami::onIncomingMessage(const fipa::acl::ACLMessage& message)
     else if(ACLMessage::performativeFromString(message.getPerformative()) == ACLMessage::INFORM)
     {
         handleIncomingResponse(message);
+    }
+    else if(ACLMessage::performativeFromString(message.getPerformative()) == ACLMessage::FAILURE)
+    {
+        handleIncomingFailure(message);
     }
     // We ignore other performatives, as they are not part of our protocol.
 }
@@ -214,6 +219,40 @@ void SuzukiKasami::handleIncomingResponse(const fipa::acl::ACLMessage& message)
     
     // Let the base class know we obtained the lock
     lockObtained(resource);
+}
+
+void SuzukiKasami::handleIncomingFailure(const fipa::acl::ACLMessage& message)
+{
+    // Abort if it's not a message delivery failure
+    if(!boost::starts_with(message.getContent(), mtsFailureMsgStart))
+    {
+        return;
+    }
+    
+    // First determine the affected resource from the conversation id.
+    std::string conversationID = message.getConversationID();
+    std::string resource;
+    for(std::map<std::string, ResourceLockState>::const_iterator it = mLockStates.begin(); it != mLockStates.end(); it++)
+    {
+        if(it->second.mConversationID == conversationID)
+        {
+            resource = it->first;
+            break;
+        }
+    }
+    // Abort if we didn't find a corresponding resource, or are not interested in the resource currently
+    if(resource == "" || mLockStates[resource].mState != lock_state::INTERESTED)
+    {
+        return;
+    }
+    
+    // Now we must handle the failure appropriately
+    //handleIncomingFailure(resource);
+}
+
+void SuzukiKasami::handleIncomingFailure(const std::string& resource, std::string intendedReceiver)
+{
+    // TODO
 }
 
 void SuzukiKasami::extractInformation(const acl::ACLMessage& message, std::string& resource, int& sequence_number)

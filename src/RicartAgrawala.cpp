@@ -45,8 +45,7 @@ void RicartAgrawala::lock(const std::string& resource, const std::list<Agent>& a
         message.addReceiver(AgentID(it->identifier));
     }
     // Set and increase conversation ID
-    message.setConversationID(mSelf.identifier + boost::lexical_cast<std::string>(mConversationIDnum));
-    mConversationIDnum++;
+    message.setConversationID(mSelf.identifier + "_" + boost::lexical_cast<std::string>(mConversationIDnum++));
     message.setProtocol(protocolTxt[protocol]);
 
     // Add to outgoing messages
@@ -60,6 +59,7 @@ void RicartAgrawala::lock(const std::string& resource, const std::list<Agent>& a
     mLockStates[resource].mResponded.clear();
     mLockStates[resource].mState = lock_state::INTERESTED;
     mLockStates[resource].mInterestTime = time;
+    mLockStates[resource].mConversationID = message.getConversationID();
 
     // Now a response from each agent must be received before we can enter the critical section
     // Let the base class know we requested the lock
@@ -123,6 +123,10 @@ void RicartAgrawala::onIncomingMessage(const fipa::acl::ACLMessage& message)
     {
         handleIncomingResponse(message);
     }
+    else if(ACLMessage::performativeFromString(message.getPerformative()) == ACLMessage::FAILURE)
+    {
+        handleIncomingFailure(message);
+    }
     // We ignore other performatives, as they are not part of our protocol.
 }
 
@@ -156,7 +160,7 @@ void RicartAgrawala::handleIncomingRequest(const fipa::acl::ACLMessage& message)
     else if(state == lock_state::INTERESTED && otherTime == mLockStates[resource].mInterestTime)
     {
         // If it should happen that 2 agents have the same timestamp, the interest is revoked, and they have to call lock() again
-        // The following is identical to unlock(), except that the prerequisite of being LOCKED is not met
+        // The following is nearly identical to unlock(), except that the prerequisite of being LOCKED is not met
         mLockStates[resource].mState = lock_state::NOT_INTERESTED;
         // Send all deferred messages for that resource
         sendAllDeferredMessages(resource);
@@ -182,7 +186,8 @@ void RicartAgrawala::handleIncomingResponse(const fipa::acl::ACLMessage& message
         return;
     }
     
-    // Save the sender
+    // Save the sender TODO if agent becomes more complex, we need to copy it from mCommunicationPartners,
+    // instead of creating a new one
     mLockStates[resource].mResponded.push_back(Agent (message.getSender().getName()));
     // Sort agents who responded
     mLockStates[resource].mResponded.sort();
@@ -196,6 +201,60 @@ void RicartAgrawala::handleIncomingResponse(const fipa::acl::ACLMessage& message
         lockObtained(resource);
     }
 }
+
+void RicartAgrawala::handleIncomingFailure(const fipa::acl::ACLMessage& message)
+{
+    // Abort if it's not a message delivery failure
+    if(!boost::starts_with(message.getContent(), mtsFailureMsgStart))
+    {
+        return;
+    }
+    
+    // First determine the affected resource from the conversation id.
+    std::string conversationID = message.getConversationID();
+    std::string resource;
+    for(std::map<std::string, ResourceLockState>::const_iterator it = mLockStates.begin(); it != mLockStates.end(); it++)
+    {
+        if(it->second.mConversationID == conversationID)
+        {
+            resource = it->first;
+            break;
+        }
+    }
+    // Abort if we didn't find a corresponding resource, or are not interested in the resource currently
+    if(resource == "" || mLockStates[resource].mState != lock_state::INTERESTED)
+    {
+        return;
+    }
+    
+    // Now we must handle the failure appropriately
+    //handleIncomingFailure(resource);
+}
+
+void RicartAgrawala::handleIncomingFailure(const std::string& resource, std::string intendedReceiver)
+{
+    bool wasTokenHolder = false;
+    // If the physical owner of the resource failed, the ressource probably cannot be obtained any more.
+    if(mOwnedResources[resource] == intendedReceiver)
+    {
+        // Revoke interest
+        mLockStates[resource].mState = lock_state::NOT_INTERESTED;
+        // We cannot update the toke, as we do not possess it,but this is probably no problem if the resource cannot be used any more
+        // TODO somehow inform that resource is now unobtainable.
+    }
+    else if(wasTokenHolder)
+    {
+        // FIXME how to find out if he atually was the tokenholder?
+        // TODO Everyone must revoke their interest, and lock newly.
+        // The physical owner needs to create a new token and becomes the new tokenholder
+    }
+    else
+    {
+        // The agent was not important, we just have to remove it from the list of communication partners, as we won't get a response from it
+        mLockStates[resource].mCommunicationPartners.remove(Agent (intendedReceiver));
+    }
+}
+
 
 void RicartAgrawala::extractInformation(const fipa::acl::ACLMessage& message, base::Time& time, std::string& resource)
 {

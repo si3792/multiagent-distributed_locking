@@ -50,7 +50,7 @@ public:
 
 private:
     /**
-     * A token used in this protocol
+     * A token used in this protocol.
      */
     struct Token
     {
@@ -86,6 +86,8 @@ private:
         std::map<std::string, int> mRequestNumber;
         // The lock state, initially not interested (=0)
         lock_state::LockState mState;
+        // The conversationID, which is relevant if we're interested and get a failure message back
+        std::string mConversationID;
     };
     
     // All resources mapped to the their ResourceLockStates
@@ -99,6 +101,14 @@ private:
      * Handles an incoming response
      */
     void handleIncomingResponse(const fipa::acl::ACLMessage& message);
+    /**
+     * Handles an incoming failure
+     */
+    void handleIncomingFailure(const fipa::acl::ACLMessage& message);
+    /**
+     * Actually handles an incoming failure.
+     */
+    void handleIncomingFailure(const std::string& resource, std::string intendedReceiver);
     /**
      * Extracts the information from the content and saves it in the passed references
      */

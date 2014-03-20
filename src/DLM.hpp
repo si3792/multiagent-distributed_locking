@@ -141,9 +141,11 @@ protected:
     static std::map<protocol::Protocol, std::string> protocolTxt;
     // The protocol string.
     static const std::string dlmProtocolStr;
+    // The start of a MTS message delivery failure message's content
+    static const std::string  mtsFailureMsgStart;
     
     /**
-     * Protected constructor with the agent to manage and a list of physically owned resources. TODO protected
+     * Protected constructor with the agent to manage and a list of physically owned resources.
      */
     DLM(const Agent& self, const std::vector<std::string>& resources);
     
@@ -154,7 +156,7 @@ protected:
     // Current number for conversation IDs
     int mConversationIDnum;
     
-    // The physically owned resources of all agents known. Maps resource->agent TODO
+    // The physically owned resources of all agents known. Maps resource->agent
     std::map<std::string, std::string> mOwnedResources;
     // The (logical) lock holders of the owned resources. Maps resource->agent
     std::map<std::string, std::string> mLockHolders;

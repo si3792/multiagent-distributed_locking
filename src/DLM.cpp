@@ -16,6 +16,8 @@ std::map<protocol::Protocol, std::string> DLM::protocolTxt = boost::assign::map_
     (protocol::SUZUKI_KASAMI, "suzuki_kasami");
 // And our own protocol string
 const std::string DLM::dlmProtocolStr = "dlm";
+// And other stuff
+const std::string DLM::mtsFailureMsgStart = "internal-error Message delivery failed! Delivery path";
     
 DLM* DLM::dlmFactory(fipa::distributed_locking::protocol::Protocol implementation, const fipa::Agent& self, const std::vector< std::string >& resources)
 {
@@ -31,11 +33,13 @@ DLM* DLM::dlmFactory(fipa::distributed_locking::protocol::Protocol implementatio
 }
 
 DLM::DLM()
+    : mConversationIDnum(0)
 {
 }
 
 DLM::DLM(const Agent& self, const std::vector<std::string>& resources)
     : mSelf(self)
+    , mConversationIDnum(0)
 {
     for(unsigned int i = 0; i < resources.size(); i++)
     {
@@ -184,7 +188,7 @@ void DLM::lockRequested(const std::string& resource, const std::list< Agent >& a
         message.addReceiver(AgentID(it->identifier));
     }
     // Set and increase conversation ID
-    message.setConversationID(mSelf.identifier + boost::lexical_cast<std::string>(mConversationIDnum++));
+    message.setConversationID(mSelf.identifier + "_" + boost::lexical_cast<std::string>(mConversationIDnum++));
     // The DLM protocol is not in the Protocol enum, as it is not a DLM implementation!
     message.setProtocol(dlmProtocolStr);
     
@@ -217,7 +221,7 @@ void DLM::lockObtained(const std::string& resource)
         message.setSender(AgentID(mSelf.identifier));
         message.addReceiver(mOwnedResources[resource]);
         // Set and increase conversation ID
-        message.setConversationID(mSelf.identifier + boost::lexical_cast<std::string>(mConversationIDnum++));
+        message.setConversationID(mSelf.identifier + "_" + boost::lexical_cast<std::string>(mConversationIDnum++));
         // The DLM protocol is not in the Protocol enum, as it is not a DLM implementation!
         message.setProtocol(dlmProtocolStr);
         
@@ -255,7 +259,7 @@ void DLM::lockReleased(const std::string& resource)
         message.setSender(AgentID(mSelf.identifier));
         message.addReceiver(mOwnedResources[resource]);
         // Set and increase conversation ID
-        message.setConversationID(mSelf.identifier + boost::lexical_cast<std::string>(mConversationIDnum++));
+        message.setConversationID(mSelf.identifier + "_" + boost::lexical_cast<std::string>(mConversationIDnum++));
         // The DLM protocol is not in the Protocol enum, as it is not a DLM implementation!
         message.setProtocol(dlmProtocolStr);
         
