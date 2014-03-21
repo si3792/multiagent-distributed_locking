@@ -107,25 +107,7 @@ BOOST_AUTO_TEST_CASE(suzuki_kasami_basic_hold_and_release)
     dlm1->lock(rsc1, boost::assign::list_of(a2)(a3));
     // He should be INTERESTED now
     BOOST_CHECK(dlm1->getLockState(rsc1) == lock_state::INTERESTED);
-    
-    // OutgoingMessages should contain one messages (2 receivers)
-    BOOST_CHECK(dlm1->hasOutgoingMessages());
-    ACLMessage dlm1msg = dlm1->popNextOutgoingMessage();
-    BOOST_CHECK(!dlm1->hasOutgoingMessages());
-    BOOST_REQUIRE_EQUAL(2, dlm1msg.getAllReceivers().size());
-
-    // Lets foward this mail to our agents
-    dlm2->onIncomingMessage(dlm1msg);
-    dlm3->onIncomingMessage(dlm1msg);
-
-    // A2 should now have responded to agent1
-    BOOST_CHECK(dlm2->hasOutgoingMessages());
-    BOOST_CHECK(!dlm3->hasOutgoingMessages());
-    ACLMessage dlm2msg = dlm2->popNextOutgoingMessage();
-    BOOST_CHECK(!dlm2->hasOutgoingMessages());
-
-    // Lets forward the responses
-    dlm1->onIncomingMessage(dlm2msg);
+    forwardAllMessages(boost::assign::list_of(dlm1)(dlm2)(dlm3));
 
     // Now, agent1 should hold the lock
     BOOST_CHECK(dlm1->getLockState(rsc1) == lock_state::LOCKED);
@@ -133,14 +115,16 @@ BOOST_AUTO_TEST_CASE(suzuki_kasami_basic_hold_and_release)
     // We release the lock and check it has been released
     dlm1->unlock(rsc1);
     BOOST_CHECK(dlm1->getLockState(rsc1) == lock_state::NOT_INTERESTED);
+    forwardAllMessages(boost::assign::list_of(dlm1)(dlm2)(dlm3));
     
     // Now, as a1 already owns the token, calling lock should work immediately, without any messages being sent
     dlm1->lock(rsc1, boost::assign::list_of(a2)(a3));
     BOOST_CHECK(dlm1->getLockState(rsc1) == lock_state::LOCKED);
-    BOOST_CHECK(!dlm1->hasOutgoingMessages());
+    forwardAllMessages(boost::assign::list_of(dlm1)(dlm2)(dlm3));
    
     // We release again
     dlm1->unlock(rsc1);
+    forwardAllMessages(boost::assign::list_of(dlm1)(dlm2)(dlm3));
 }
 
 /**
@@ -166,31 +150,22 @@ BOOST_AUTO_TEST_CASE(suzuki_kasami_two_agents_conflict)
     dlm1->lock(rsc1, boost::assign::list_of(a2));
     // Now, agent1 should hold the lock
     BOOST_CHECK(dlm1->getLockState(rsc1) == lock_state::LOCKED);
+    forwardAllMessages(boost::assign::list_of(dlm1)(dlm2));
     
     // Now a2 tries to lock the same resource
     dlm2->lock(rsc1, boost::assign::list_of(a1));
-    // OutgoingMessages should contain one messages
-    BOOST_CHECK(dlm2->hasOutgoingMessages());
-    ACLMessage dlm2msg = dlm2->popNextOutgoingMessage();
-    BOOST_CHECK(!dlm2->hasOutgoingMessages());
-
-    // Lets foward this mail
-    dlm1->onIncomingMessage(dlm2msg);
+    forwardAllMessages(boost::assign::list_of(dlm2)(dlm1));
     
     // We release the lock and check it has been released
     dlm1->unlock(rsc1);
     BOOST_CHECK(dlm1->getLockState(rsc1) == lock_state::NOT_INTERESTED);
-    // Now agent1 should have a new outgoing message with the token
-    BOOST_CHECK(dlm1->hasOutgoingMessages());
-    ACLMessage dlm1rsp = dlm1->popNextOutgoingMessage();
-    BOOST_CHECK(!dlm1->hasOutgoingMessages());
+    forwardAllMessages(boost::assign::list_of(dlm1)(dlm2));
     
-    // We forward it
-    dlm2->onIncomingMessage(dlm1rsp);
     // Now, agent2 should hold the lock
     BOOST_CHECK(dlm2->getLockState(rsc1) == lock_state::LOCKED);
     
-    // Now a2 releases the lock, and should have a new outgoing message, which we forward
+    // Now a2 releases the lock
     dlm2->unlock(rsc1);
     BOOST_CHECK(dlm2->getLockState(rsc1) == lock_state::NOT_INTERESTED);
+    forwardAllMessages(boost::assign::list_of(dlm1)(dlm2));
 }

@@ -5,7 +5,7 @@ using namespace fipa::distributed_locking;
 using namespace fipa::acl;
 
 /**
- * Forwards all messages that currently await. FIXME to a new file
+ * Forwards all messages that currently await.
  */
 void forwardAllMessages(std::list<DLM*> dlms)
 {
