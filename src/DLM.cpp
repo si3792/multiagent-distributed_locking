@@ -16,8 +16,6 @@ std::map<protocol::Protocol, std::string> DLM::protocolTxt = boost::assign::map_
     (protocol::SUZUKI_KASAMI, "suzuki_kasami");
 // And our own protocol string
 const std::string DLM::dlmProtocolStr = "dlm";
-// And other stuff
-const std::string DLM::mtsFailureMsgStart = "internal-error Message delivery failed! Delivery path";
     
 DLM* DLM::dlmFactory(fipa::distributed_locking::protocol::Protocol implementation, const fipa::Agent& self, const std::vector< std::string >& resources)
 {
@@ -95,47 +93,72 @@ lock_state::LockState DLM::getLockState(const std::string& resource)
 
 void DLM::onIncomingMessage(const acl::ACLMessage& message)
 {
+    // Debug:
+    if(fipa::acl::ACLMessage::performativeFromString(message.getPerformative()) == fipa::acl::ACLMessage::FAILURE)
+    {
+        std::cout << message.toString() << std::endl;
+    }
+    
     // Check if it's the right protocol
     if(message.getProtocol() != dlmProtocolStr)
     {
         return;
     }
-    
     using namespace fipa::acl;
+    // Abort if we're not a receiver
+    AgentIDList receivers = message.getAllReceivers();
+    bool foundUs = false;
+    for(unsigned int i = 0; i < receivers.size(); i++)
+    {
+        AgentID agentID = receivers[i];
+        if(agentID.getName() == mSelf.identifier)
+        {
+            foundUs = true;
+            break;
+        }
+    }
+    if(!foundUs)
+    {
+        return;
+    }
+    
     if(ACLMessage::performativeFromString(message.getPerformative()) == ACLMessage::REQUEST)
     {
         std::string resource = message.getContent();
-        // If we are the physical owner of that resource, we reply with that information.
-        // By making the reply also a broadcast, we can save messges later, if other agents want to lock the same resource
-        ACLMessage response;
-        response.setPerformative(ACLMessage::INFORM);
-
-        // Our informOwnership messages are in the format "'OWNER'\nRESOURCE_IDENTIFIER"
-        response.setContent("OWNER\n" + resource);
-        // Add sender and receivers
-        response.setSender(AgentID(mSelf.identifier));
-        
-        AgentIDList receivers = message.getAllReceivers();
-        // remove ourselves..
-        for(AgentIDList::iterator it = receivers.begin(); it != receivers.end(); it++)
+        // If we are the physical owner of that resource, we reply with that information. Otherwise, we ignore the message
+        if(mOwnedResources[resource] == mSelf.identifier)
         {
-            if(*it == mSelf.identifier)
+            // By making the reply also a broadcast, we can save messages later, if other agents want to lock the same resource
+            ACLMessage response;
+            response.setPerformative(ACLMessage::INFORM);
+
+            // Our informOwnership messages are in the format "'OWNER'\nRESOURCE_IDENTIFIER"
+            response.setContent("OWNER\n" + resource);
+            // Add sender and receivers
+            response.setSender(AgentID(mSelf.identifier));
+            
+            AgentIDList receivers = message.getAllReceivers();
+            // remove ourselves..
+            for(AgentIDList::iterator it = receivers.begin(); it != receivers.end(); it++)
             {
-                receivers.erase(it);
-                break;
+                if(*it == mSelf.identifier)
+                {
+                    receivers.erase(it);
+                    break;
+                }
             }
+            // ..and add sender
+            receivers.push_back(message.getSender());
+            response.setAllReceivers(receivers);
+            
+            // Set conversation ID
+            response.setConversationID(message.getConversationID());
+            // The DLM protocol is not in the Protocol enum, as it is not a DLM implementation!
+            response.setProtocol(dlmProtocolStr);
+            
+            // Add to outgoing messages
+            mOutgoingMessages.push_back(response);
         }
-        // ..and add sender
-        receivers.push_back(message.getSender());
-        response.setAllReceivers(receivers);
-        
-        // Set conversation ID
-        response.setConversationID(message.getConversationID());
-        // The DLM protocol is not in the Protocol enum, as it is not a DLM implementation!
-        response.setProtocol(dlmProtocolStr);
-        
-        // Add to outgoing messages
-        mOutgoingMessages.push_back(message);
     }
     else if(ACLMessage::performativeFromString(message.getPerformative()) == ACLMessage::INFORM)
     {

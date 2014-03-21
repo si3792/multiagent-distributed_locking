@@ -204,12 +204,6 @@ void RicartAgrawala::handleIncomingResponse(const fipa::acl::ACLMessage& message
 
 void RicartAgrawala::handleIncomingFailure(const fipa::acl::ACLMessage& message)
 {
-    // Abort if it's not a message delivery failure
-    if(!boost::starts_with(message.getContent(), mtsFailureMsgStart))
-    {
-        return;
-    }
-    
     // First determine the affected resource from the conversation id.
     std::string conversationID = message.getConversationID();
     std::string resource;
@@ -227,31 +221,44 @@ void RicartAgrawala::handleIncomingFailure(const fipa::acl::ACLMessage& message)
         return;
     }
     
-    // Now we must handle the failure appropriately
-    //handleIncomingFailure(resource);
+    using namespace fipa::acl;
+    // Get intended receivers
+    std::string innerEncodedMsg = message.getContent();
+    ACLMessage errorMsg;
+    MessageParser::parseData(innerEncodedMsg, errorMsg, representation::STRING_REP);
+    AgentIDList deliveryFailedForAgents = errorMsg.getAllReceivers();
+    
+    for(AgentIDList::const_iterator it = deliveryFailedForAgents.begin(); it != deliveryFailedForAgents.end(); it++)
+    {
+        // Now we must handle the failure appropriately
+        handleIncomingFailure(resource, it->getName());
+    }
 }
 
 void RicartAgrawala::handleIncomingFailure(const std::string& resource, std::string intendedReceiver)
 {
-    bool wasTokenHolder = false;
     // If the physical owner of the resource failed, the ressource probably cannot be obtained any more.
     if(mOwnedResources[resource] == intendedReceiver)
     {
         // Revoke interest
         mLockStates[resource].mState = lock_state::NOT_INTERESTED;
-        // We cannot update the toke, as we do not possess it,but this is probably no problem if the resource cannot be used any more
+        // Send all deferred messages for that resource
+        sendAllDeferredMessages(resource);
         // TODO somehow inform that resource is now unobtainable.
-    }
-    else if(wasTokenHolder)
-    {
-        // FIXME how to find out if he atually was the tokenholder?
-        // TODO Everyone must revoke their interest, and lock newly.
-        // The physical owner needs to create a new token and becomes the new tokenholder
     }
     else
     {
         // The agent was not important, we just have to remove it from the list of communication partners, as we won't get a response from it
         mLockStates[resource].mCommunicationPartners.remove(Agent (intendedReceiver));
+        
+        // We have got the lock, if all agents responded
+        if(mLockStates[resource].mCommunicationPartners == mLockStates[resource].mResponded)
+        {
+            mLockStates[resource].mState = lock_state::LOCKED;
+            
+            // Let the base class know we obtained the lock
+            lockObtained(resource);
+        }
     }
 }
 

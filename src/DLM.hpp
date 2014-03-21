@@ -141,8 +141,6 @@ protected:
     static std::map<protocol::Protocol, std::string> protocolTxt;
     // The protocol string.
     static const std::string dlmProtocolStr;
-    // The start of a MTS message delivery failure message's content
-    static const std::string  mtsFailureMsgStart;
     
     /**
      * Protected constructor with the agent to manage and a list of physically owned resources.
