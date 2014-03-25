@@ -7,6 +7,7 @@
 #include <boost/assign/list_of.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string.hpp>
+#include <boost/thread.hpp>
 
 namespace fipa {
 namespace distributed_locking {
@@ -16,8 +17,12 @@ std::map<protocol::Protocol, std::string> DLM::protocolTxt = boost::assign::map_
     (protocol::RICART_AGRAWALA, "ricart_agrawala")
     (protocol::RICART_AGRAWALA_EXTENDED, "ricart_agrawala_extended")
     (protocol::SUZUKI_KASAMI, "suzuki_kasami");
-// And our own protocol string
+// And our own protocol strings
 const std::string DLM::dlmProtocolStr = "dlm";
+const std::string DLM::probeProtocolStr = "probe";
+// And other stuff
+const int DLM::probeTimeoutSeconds = 5;
+
     
 DLM* DLM::dlmFactory(fipa::distributed_locking::protocol::Protocol implementation, const fipa::Agent& self, const std::vector< std::string >& resources)
 {
@@ -93,6 +98,11 @@ void DLM::unlock(const std::string& resource)
 lock_state::LockState DLM::getLockState(const std::string& resource)
 {
     throw std::runtime_error("DLM::getLockState not implemented");
+}
+
+void DLM::agentFailed(const std::string& agentName)
+{
+    throw std::runtime_error("DLM::agentFailed not implemented");
 }
 
 void DLM::onIncomingMessage(const acl::ACLMessage& message)
@@ -294,6 +304,42 @@ void DLM::lockReleased(const std::string& resource)
         
         // Add to outgoing messages
         mOutgoingMessages.push_back(message);
+    }
+}
+
+void DLM::startRequestingProbes(const std::string& agentName)
+{
+    if(mProbeThreads.count(agentName) == 0) // TODO does this consider default threads?
+    {
+        // This starts the thread
+        mProbeThreads[agentName] = new boost::thread (&DLM::probeExecutor, this, agentName); // FIXME I doubt this actually works
+    }
+}
+
+void DLM::stopRequestingProbes(const std::string& agentName)
+{
+    if(mProbeThreads.count(agentName) != 0) // TODO does this consider default threads?
+    {
+        // This interrupts the thread
+        mProbeThreads[agentName]->interrupt();
+    }
+}
+
+void DLM::probeExecutor(const std::string& agentName)
+{
+    // As long as we're not interrupted
+    while(!boost::this_thread::interruption_requested())
+    {
+        //probe();
+        try {
+        boost::this_thread::sleep_for(boost::chrono::seconds(probeTimeoutSeconds)); // TODO constant TODO try-catch
+        }
+        catch(const boost::thread_interrupted& e)
+        {
+            // Abort
+            break;
+        }
+        
     }
 }
 

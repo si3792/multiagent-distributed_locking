@@ -48,6 +48,11 @@ public:
      * Subclasses MUST call the base implementation, as there are also direct DLM messages not belonging to any underlying protocol.
      */
     virtual void onIncomingMessage(const fipa::acl::ACLMessage& message);
+    /**
+     * This message is called by the DLM, if an agent does not respond PROBE messages with SUCCESS after a certain timeout.
+     * Subclasses can and should react according to the algorithm.
+     */
+    virtual void agentFailed(const std::string& agentName);
 
 protected:
     /**

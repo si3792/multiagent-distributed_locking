@@ -4,9 +4,6 @@
 #include "Agent.hpp"
 #include <fipa_acl/fipa_acl.h>
 
-#include <list>
-#include <vector>
-
 /** \mainpage Distributed Locking Mechanism
  *  This library provides an interface for a locking mechanism on distributed systems. This interface is given by the abstract class DLM.
  *
@@ -135,12 +132,21 @@ public:
      * Subclasses MUST call the base implementation, as there are also direct DLM messages not belonging to any underlying protocol.
      */
     virtual void onIncomingMessage(const fipa::acl::ACLMessage& message);
+    
+    /**
+     * This message is called by the DLM, if an agent does not respond PROBE messages with SUCCESS after a certain timeout.
+     * Subclasses can and should react according to the algorithm.
+     */
+    virtual void agentFailed(const std::string& agentName);
 
 protected:
     // A mapping between protocols and strings
     static std::map<protocol::Protocol, std::string> protocolTxt;
-    // The protocol string.
+    // The protocol strings
     static const std::string dlmProtocolStr;
+    static const std::string probeProtocolStr;
+    // The timeout of probe messages
+    static const int probeTimeoutSeconds;
     
     /**
      * Protected constructor with the agent to manage and a list of physically owned resources.
@@ -158,6 +164,9 @@ protected:
     std::map<std::string, std::string> mOwnedResources;
     // The (logical) lock holders of the owned resources. Maps resource->agent
     std::map<std::string, std::string> mLockHolders;
+    // All running probe threads
+    std::map<std::string, boost::thread*> mProbeThreads;
+    
     /**
      * This method MUST be called by implementing subclasses, when the lock is requested.
      * Like this we can keep track of physically owned resources of other agents.
@@ -175,6 +184,20 @@ protected:
      * Like this we can keep track of logical owners of our own resources.
      */
     void lockReleased(const std::string& resource);
+    /**
+     * Tells the DLM to send PROBE messages to the agent in intervals, and call agentFailed, if it does not respond.
+     */
+    void startRequestingProbes(const std::string& agentName);
+    /**
+     * Tells the DLM to stop sending PROBE messages to the agent.
+     */
+    void stopRequestingProbes(const std::string& agentName);
+    
+private:
+    /**
+     * The actual thread method for probe messages.
+     */
+    void probeExecutor(const std::string& agentName);
 };
 
 } // namespace distributed_locking

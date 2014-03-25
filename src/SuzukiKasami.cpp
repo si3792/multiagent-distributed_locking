@@ -285,6 +285,11 @@ void SuzukiKasami::handleIncomingFailure(const std::string& resource, std::strin
     }
 }
 
+void SuzukiKasami::agentFailed(const std::string& agentName)
+{
+    // TODO
+}
+
 void SuzukiKasami::extractInformation(const acl::ACLMessage& message, std::string& resource, int& sequence_number)
 {
     // Split by newline

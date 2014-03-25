@@ -269,6 +269,10 @@ void RicartAgrawala::handleIncomingFailure(const std::string& resource, std::str
     }
 }
 
+void RicartAgrawala::agentFailed(const std::string& agentName)
+{
+    // TODO
+}
 
 void RicartAgrawala::extractInformation(const fipa::acl::ACLMessage& message, base::Time& time, std::string& resource)
 {
