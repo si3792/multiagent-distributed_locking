@@ -33,9 +33,15 @@ SuzukiKasami::SuzukiKasami(const fipa::Agent& self, const std::vector< std::stri
 
 void SuzukiKasami::lock(const std::string& resource, const std::list<Agent>& agents)
 {
+    lock_state::LockState state = getLockState(resource);
     // Only act we are not holding this resource and not already interested in it
-    if(getLockState(resource) != lock_state::NOT_INTERESTED)
+    if(state != lock_state::NOT_INTERESTED)
     {
+        if(state == lock_state::UNREACHABLE)
+        {
+            // An unreachable resource cannot be locked. Throw exception
+            throw std::runtime_error("RicartAgrawala::lock Cannot lock UNREACHABLE resource.");
+        }
         return;
     }
     
@@ -47,6 +53,9 @@ void SuzukiKasami::lock(const std::string& resource, const std::list<Agent>& age
         lockObtained(resource);
         return;
     }
+    
+    // Let the base class know we're requesting the lock BEFORE we actually do that
+    lockRequested(resource, agents);
     
     // Increase our sequence_number
     mLockStates[resource].mRequestNumber[mSelf.identifier]++;
@@ -80,8 +89,6 @@ void SuzukiKasami::lock(const std::string& resource, const std::list<Agent>& age
     mLockStates[resource].mConversationID = message.getConversationID();
 
     // Now the token must be obtained before we can enter the critical section
-    // Let the base class know we requested the lock
-    lockRequested(resource, agents);
 }
 
 void SuzukiKasami::unlock(const std::string& resource)
@@ -260,10 +267,9 @@ void SuzukiKasami::handleIncomingFailure(const std::string& resource, std::strin
     // If the physical owner of the resource failed, the ressource probably cannot be obtained any more.
     if(mOwnedResources[resource] == intendedReceiver)
     {
-        // Revoke interest
-        mLockStates[resource].mState = lock_state::NOT_INTERESTED;
-        // We cannot update the toke, as we do not possess it,but this is probably no problem if the resource cannot be used any more
-        // TODO somehow inform that resource is now unobtainable.
+        // Mark resource as unreachable.
+        mLockStates[resource].mState = lock_state::UNREACHABLE;
+        // We cannot update the token, as we do not possess it, but this is probably no problem if the resource cannot be used any more
     }
     else if(wasTokenHolder)
     {

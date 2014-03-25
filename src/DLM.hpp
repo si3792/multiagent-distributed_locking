@@ -62,7 +62,7 @@ namespace lock_state {
     \enum LockState
     \brief an enum of all the possible lock states per resource
 */
-enum LockState { NOT_INTERESTED = 0, INTERESTED, LOCKED };
+enum LockState { UNREACHABLE = -1, NOT_INTERESTED = 0, INTERESTED, LOCKED };
 } // namespace lock_state
 
 namespace protocol {
@@ -161,6 +161,8 @@ protected:
     /**
      * This method MUST be called by implementing subclasses, when the lock is requested.
      * Like this we can keep track of physically owned resources of other agents.
+     * Ideally, this should be called BEFORE lock requesting messages are even pushed back
+     * in mOutgoingMessages.
      */
     void lockRequested(const std::string& resource, const std::list<Agent>& agents);
     /**

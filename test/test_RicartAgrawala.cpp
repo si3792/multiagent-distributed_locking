@@ -14,6 +14,107 @@ using namespace fipa::distributed_locking;
 using namespace fipa::acl;
 
 /**
+ * Test correct reactions if an agent fails, that is important.
+ */
+BOOST_AUTO_TEST_CASE(ricart_agrawala_failing_agent_important)
+{
+    std::cout << "ricart_agrawala_failing_agent_important" << std::endl;
+
+    // Create 2 Agents
+    Agent a1 ("agent1"), a2 ("agent2");
+    // Define critical resource
+    std::string rsc1 = "resource";
+    // and a vector containing it
+    std::vector<std::string> rscs;
+    rscs.push_back(rsc1);
+
+    // Create 2 DLMs
+    DLM* dlm1 = DLM::dlmFactory(protocol::RICART_AGRAWALA, a1, rscs);
+    DLM* dlm2 = DLM::dlmFactory(protocol::RICART_AGRAWALA, a2, std::vector<std::string>());
+
+    // Let dlm2 lock and unlock rsc1 once, so that he knows dlm1 is the owner.
+    dlm2->lock(rsc1, boost::assign::list_of(a1));
+    forwardAllMessages(boost::assign::list_of(dlm2)(dlm1));
+    dlm2->unlock(rsc1);
+    forwardAllMessages(boost::assign::list_of(dlm2)(dlm1));
+
+    // Now we simulate a failure of dlm1
+    dlm2->lock(rsc1, boost::assign::list_of(a1));
+    // No message forwarding!
+    ACLMessage msgOut = dlm2->popNextOutgoingMessage();
+
+    ACLMessage innerFailureMsg;
+    innerFailureMsg.setPerformative(ACLMessage::INFORM); // FIXME original performative?
+    innerFailureMsg.setSender(AgentID(a2.identifier));
+    innerFailureMsg.addReceiver(AgentID(a1.identifier));
+    innerFailureMsg.setContent("description: message delivery failed");
+    ACLMessage outerFailureMsg;
+    outerFailureMsg.setPerformative(ACLMessage::FAILURE);
+    outerFailureMsg.setSender(AgentID("mts"));
+    outerFailureMsg.addReceiver(AgentID(a2.identifier));
+    outerFailureMsg.setOntology("fipa-agent-management");
+    outerFailureMsg.setProtocol(msgOut.getProtocol());
+    outerFailureMsg.setConversationID(msgOut.getConversationID());
+    outerFailureMsg.setContent(innerFailureMsg.toString());
+    
+    dlm2->onIncomingMessage(outerFailureMsg);
+    
+    // a1 was owner of rsc1, so he should be considered important.
+    // therefore, a2 should mark the resource as unobtainable
+    BOOST_CHECK(dlm2->getLockState(rsc1) == lock_state::UNREACHABLE);
+    
+    // Calling lock now should trigger an exception
+    BOOST_CHECK_THROW(dlm2->lock(rsc1, boost::assign::list_of(a1)), std::runtime_error);
+}
+
+/**
+ * Test correct reactions if an agent fails, that is not important.
+ */
+BOOST_AUTO_TEST_CASE(ricart_agrawala_failing_agent_not_important)
+{
+    std::cout << "ricart_agrawala_failing_agent_not_important" << std::endl;
+
+    // Create 2 Agents
+    Agent a1 ("agent1"), a2 ("agent2");
+    // Define critical resource
+    std::string rsc1 = "resource";
+    // and a vector containing it
+    std::vector<std::string> rscs;
+    rscs.push_back(rsc1);
+
+    // Create 2 DLMs
+    DLM* dlm1 = DLM::dlmFactory(protocol::RICART_AGRAWALA, a1, std::vector<std::string>());
+    DLM* dlm2 = DLM::dlmFactory(protocol::RICART_AGRAWALA, a2, rscs);
+
+    // dlm2 owns rsc1 and therefore knows he's the owner
+
+    // Now we simulate a failure of dlm1
+    dlm2->lock(rsc1, boost::assign::list_of(a1));
+    // No message forwarding!
+    ACLMessage msgOut = dlm2->popNextOutgoingMessage();
+
+    ACLMessage innerFailureMsg;
+    innerFailureMsg.setPerformative(ACLMessage::INFORM); // FIXME original performative?
+    innerFailureMsg.setSender(AgentID(a2.identifier));
+    innerFailureMsg.addReceiver(AgentID(a1.identifier));
+    innerFailureMsg.setContent("description: message delivery failed");
+    ACLMessage outerFailureMsg;
+    outerFailureMsg.setPerformative(ACLMessage::FAILURE);
+    outerFailureMsg.setSender(AgentID("mts"));
+    outerFailureMsg.addReceiver(AgentID(a2.identifier));
+    outerFailureMsg.setOntology("fipa-agent-management");
+    outerFailureMsg.setProtocol(msgOut.getProtocol());
+    outerFailureMsg.setConversationID(msgOut.getConversationID());
+    outerFailureMsg.setContent(innerFailureMsg.toString());
+    
+    dlm2->onIncomingMessage(outerFailureMsg);
+    
+    // a1 was not owner of rsc1, so he should be considered not important.
+    // therefore, a2 should hold the lock now
+    BOOST_CHECK(dlm2->getLockState(rsc1) == lock_state::LOCKED);
+}
+
+/**
  * Test taken from the ruby script.
  */
 BOOST_AUTO_TEST_CASE(ricart_agrawala_test_from_ruby_script)
@@ -26,7 +127,7 @@ BOOST_AUTO_TEST_CASE(ricart_agrawala_test_from_ruby_script)
     // and a vector containing it
     std::vector<std::string> rscs;
     rscs.push_back(rsc1);
-    
+
     // Create 3 DLMs
     DLM* dlm1 = DLM::dlmFactory(protocol::RICART_AGRAWALA, a1, rscs);
     DLM* dlm2 = DLM::dlmFactory(protocol::RICART_AGRAWALA, a2, std::vector<std::string>());
@@ -92,7 +193,7 @@ BOOST_AUTO_TEST_CASE(ricart_agrawala_basic_hold_and_release)
     // and a vector containing it
     std::vector<std::string> rscs;
     rscs.push_back(rsc1);
-    
+
     // Create 3 DLMs
     DLM* dlm1 = DLM::dlmFactory(protocol::RICART_AGRAWALA, a1, rscs);
     DLM* dlm2 = DLM::dlmFactory(protocol::RICART_AGRAWALA, a2, std::vector<std::string>());
@@ -130,7 +231,7 @@ BOOST_AUTO_TEST_CASE(ricart_agrawala_two_agents_conflict)
     // and a vector containing it
     std::vector<std::string> rscs;
     rscs.push_back(rsc1);
-    
+
     // Create 2 DLMs
     DLM* dlm1 = DLM::dlmFactory(protocol::RICART_AGRAWALA, a1, rscs);
     DLM* dlm2 = DLM::dlmFactory(protocol::RICART_AGRAWALA, a2, std::vector<std::string>());
@@ -142,7 +243,7 @@ BOOST_AUTO_TEST_CASE(ricart_agrawala_two_agents_conflict)
     // Now (later) a2 tries to lock the same resource
     dlm2->lock(rsc1, boost::assign::list_of(a1));
     forwardAllMessages(boost::assign::list_of(dlm2)(dlm1));
-    
+
     // Now, agent1 should hold the lock
     BOOST_CHECK(dlm1->getLockState(rsc1) == lock_state::LOCKED);
     // We release the lock and check it has been released
@@ -150,7 +251,7 @@ BOOST_AUTO_TEST_CASE(ricart_agrawala_two_agents_conflict)
     forwardAllMessages(boost::assign::list_of(dlm1)(dlm2));
     BOOST_CHECK(dlm1->getLockState(rsc1) == lock_state::NOT_INTERESTED);
     // Now agent1 should have a new outgoing message, that has been deferred earlier
-    
+
     // Now, agent2 should hold the lock
     BOOST_CHECK(dlm2->getLockState(rsc1) == lock_state::LOCKED);
 
@@ -185,7 +286,7 @@ BOOST_AUTO_TEST_CASE(ricart_agrawala_same_time_conflict)
     // and a vector containing it
     std::vector<std::string> rscs;
     rscs.push_back(rsc1);
-    
+
     // Create 1 DLM
     DLM* dlm1 = DLM::dlmFactory(protocol::RICART_AGRAWALA, a1, rscs);
 

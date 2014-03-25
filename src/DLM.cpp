@@ -192,7 +192,7 @@ void DLM::onIncomingMessage(const acl::ACLMessage& message)
 void DLM::lockRequested(const std::string& resource, const std::list< Agent >& agents)
 {
     // if we already know the physical owner of that resource, we don't have to do anything
-    if(mOwnedResources.count(resource) != 0)
+    if(mOwnedResources.count(resource) != 0 && mOwnedResources[resource] != "")
     {
         return;
     }
@@ -229,8 +229,9 @@ void DLM::lockObtained(const std::string& resource)
     else
     {
         // Otherwise, if we know the physical owner, we have to send him an ACL message
-        if(mOwnedResources.count(resource) == 0)
+        if(mOwnedResources.count(resource) == 0 || mOwnedResources[resource] == "")
         {
+            std::cout << "DLM::lockObtained WARN: " << mSelf.identifier << " did not know the owner of " << resource << std::endl;
             return;
         }
         
@@ -242,7 +243,7 @@ void DLM::lockObtained(const std::string& resource)
         message.setContent("LOCK\n" + resource);
         // Add sender and receiver
         message.setSender(AgentID(mSelf.identifier));
-        message.addReceiver(mOwnedResources[resource]);
+        message.addReceiver(AgentID(mOwnedResources[resource]));
         // Set and increase conversation ID
         message.setConversationID(mSelf.identifier + "_" + boost::lexical_cast<std::string>(mConversationIDnum++));
         // The DLM protocol is not in the Protocol enum, as it is not a DLM implementation!
@@ -267,8 +268,9 @@ void DLM::lockReleased(const std::string& resource)
     else
     {
         // Otherwise, if we know the physical owner, we have to send him an ACL message
-        if(mOwnedResources.count(resource) == 0)
+        if(mOwnedResources.count(resource) == 0 || mOwnedResources[resource] == "")
         {
+            std::cout << "DLM::lockReleased WARN: " << mSelf.identifier << " did not know the owner of " << resource << std::endl;
             return;
         }
         
@@ -280,7 +282,7 @@ void DLM::lockReleased(const std::string& resource)
         message.setContent("UNLOCK\n" + resource);
         // Add sender and receiver
         message.setSender(AgentID(mSelf.identifier));
-        message.addReceiver(mOwnedResources[resource]);
+        message.addReceiver(AgentID(mOwnedResources[resource]));
         // Set and increase conversation ID
         message.setConversationID(mSelf.identifier + "_" + boost::lexical_cast<std::string>(mConversationIDnum++));
         // The DLM protocol is not in the Protocol enum, as it is not a DLM implementation!

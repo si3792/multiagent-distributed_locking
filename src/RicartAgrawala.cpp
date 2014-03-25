@@ -23,11 +23,20 @@ RicartAgrawala::RicartAgrawala(const fipa::Agent& self, const std::vector< std::
 
 void RicartAgrawala::lock(const std::string& resource, const std::list<Agent>& agents)
 {
+    lock_state::LockState state = getLockState(resource);
     // Only act we are not holding this resource and not already interested in it
-    if(getLockState(resource) != lock_state::NOT_INTERESTED)
+    if(state != lock_state::NOT_INTERESTED)
     {
+        if(state == lock_state::UNREACHABLE)
+        {
+            // An unreachable resource cannot be locked. Throw exception
+            throw std::runtime_error("RicartAgrawala::lock Cannot lock UNREACHABLE resource.");
+        }
         return;
     }
+    
+    // Let the base class know we're requesting the lock BEFORE we actually do that
+    lockRequested(resource, agents);
 
     using namespace fipa::acl;
     // Send a message to everyone, requesting the lock
@@ -62,8 +71,6 @@ void RicartAgrawala::lock(const std::string& resource, const std::list<Agent>& a
     mLockStates[resource].mConversationID = message.getConversationID();
 
     // Now a response from each agent must be received before we can enter the critical section
-    // Let the base class know we requested the lock
-    lockRequested(resource, agents);
 }
 
 void RicartAgrawala::unlock(const std::string& resource)
@@ -218,6 +225,7 @@ void RicartAgrawala::handleIncomingFailure(const fipa::acl::ACLMessage& message)
     // Abort if we didn't find a corresponding resource, or are not interested in the resource currently
     if(resource == "" || mLockStates[resource].mState != lock_state::INTERESTED)
     {
+        // TODO what do we do, if a response message cannot be delivered?
         return;
     }
     
@@ -240,11 +248,10 @@ void RicartAgrawala::handleIncomingFailure(const std::string& resource, std::str
     // If the physical owner of the resource failed, the ressource probably cannot be obtained any more.
     if(mOwnedResources[resource] == intendedReceiver)
     {
-        // Revoke interest
-        mLockStates[resource].mState = lock_state::NOT_INTERESTED;
+        // Mark resource as unreachable.
+        mLockStates[resource].mState = lock_state::UNREACHABLE;
         // Send all deferred messages for that resource
         sendAllDeferredMessages(resource);
-        // TODO somehow inform that resource is now unobtainable.
     }
     else
     {
