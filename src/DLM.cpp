@@ -1,5 +1,6 @@
 #include "DLM.hpp"
 #include "RicartAgrawala.hpp"
+#include "RicartAgrawalaExtended.hpp"
 #include "SuzukiKasami.hpp"
 
 #include <stdexcept>
@@ -13,6 +14,7 @@ namespace distributed_locking {
 // Initialize the Protocol->string mapping
 std::map<protocol::Protocol, std::string> DLM::protocolTxt = boost::assign::map_list_of
     (protocol::RICART_AGRAWALA, "ricart_agrawala")
+    (protocol::RICART_AGRAWALA_EXTENDED, "ricart_agrawala_extended")
     (protocol::SUZUKI_KASAMI, "suzuki_kasami");
 // And our own protocol string
 const std::string DLM::dlmProtocolStr = "dlm";
@@ -23,6 +25,8 @@ DLM* DLM::dlmFactory(fipa::distributed_locking::protocol::Protocol implementatio
     {
         case protocol::RICART_AGRAWALA:
             return new RicartAgrawala(self, resources);
+        case protocol::RICART_AGRAWALA_EXTENDED:
+            return new RicartAgrawalaExtended(self, resources);
         case protocol::SUZUKI_KASAMI:
             return new SuzukiKasami(self, resources);
         default:

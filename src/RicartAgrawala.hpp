@@ -49,7 +49,7 @@ public:
      */
     virtual void onIncomingMessage(const fipa::acl::ACLMessage& message);
 
-private:
+protected:
     /**
      * Nested class representing an inner state for a certain resource.
      * It is mapped to its resource name.

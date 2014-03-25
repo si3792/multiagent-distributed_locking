@@ -44,7 +44,7 @@ BOOST_AUTO_TEST_CASE(ricart_agrawala_failing_agent_important)
     ACLMessage msgOut = dlm2->popNextOutgoingMessage();
 
     ACLMessage innerFailureMsg;
-    innerFailureMsg.setPerformative(ACLMessage::INFORM); // FIXME original performative?
+    innerFailureMsg.setPerformative(ACLMessage::INFORM);
     innerFailureMsg.setSender(AgentID(a2.identifier));
     innerFailureMsg.addReceiver(AgentID(a1.identifier));
     innerFailureMsg.setContent("description: message delivery failed");
@@ -94,7 +94,7 @@ BOOST_AUTO_TEST_CASE(ricart_agrawala_failing_agent_not_important)
     ACLMessage msgOut = dlm2->popNextOutgoingMessage();
 
     ACLMessage innerFailureMsg;
-    innerFailureMsg.setPerformative(ACLMessage::INFORM); // FIXME original performative?
+    innerFailureMsg.setPerformative(ACLMessage::INFORM);
     innerFailureMsg.setSender(AgentID(a2.identifier));
     innerFailureMsg.addReceiver(AgentID(a1.identifier));
     innerFailureMsg.setContent("description: message delivery failed");

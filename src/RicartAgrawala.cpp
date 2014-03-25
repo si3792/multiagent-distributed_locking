@@ -225,7 +225,7 @@ void RicartAgrawala::handleIncomingFailure(const fipa::acl::ACLMessage& message)
     // Abort if we didn't find a corresponding resource, or are not interested in the resource currently
     if(resource == "" || mLockStates[resource].mState != lock_state::INTERESTED)
     {
-        // TODO what do we do, if a response message cannot be delivered?
+        // If a response message cannot be delivered, we can ignore that
         return;
     }
     
