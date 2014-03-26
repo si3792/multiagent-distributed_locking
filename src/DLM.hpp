@@ -113,6 +113,12 @@ public:
      * True, if there are outgoing messages than can be obtained with popNextOutgoingMessage.
      */
     bool hasOutgoingMessages();
+    
+    /**
+     * This method MUST be called periodically by the wrapping component. It runs everything, that needs to be done regularly.
+     * For DLM, this is sending PROBE messages and checking if SUCCESS messages were received.
+     */
+    virtual void trigger();
 
     /**
      * Tries to lock a resource. Subsequently, isLocked() must be called to check the status.
@@ -145,16 +151,13 @@ protected:
      */
     struct ProbeRunner
     {
-        // The actual thread
-        boost::shared_ptr<boost::thread> pThread;
-        //boost::thread* pThread;
-        /**
-         * A list of resources for which probes have been requested.
-         * Sending them will only be stopped, if the list is empty.
-         */
-        std::list<std::string> resources;
-        // Whether the partner responded
-        volatile bool success;
+        // The timestamp, when the last PROBE was sent.
+        base::Time mTimeStamp;
+        // A list of resources for which probes have been requested.
+        // Sending them will only be stopped, if the list is empty.
+        std::list<std::string> mResources;
+        // Whether the partner responded.
+        bool mSuccess;
     };
     
     // A mapping between protocols and strings
@@ -181,13 +184,13 @@ protected:
     std::map<std::string, std::string> mOwnedResources;
     // The (logical) lock holders of the owned resources. Maps resource->agent
     std::map<std::string, std::string> mLockHolders;
-    // All running probe threads
+    // All probe runners. agentName -> ProbeRunner
     std::map<std::string, ProbeRunner> mProbeRunners;
     
     /**
      * This method MUST be called by implementing subclasses, when the lock is requested.
      * Like this we can keep track of physically owned resources of other agents.
-     * Ideally, this should be called BEFORE lock requesting messages are even pushed back
+     * Ideally, this SHOULD be called BEFORE lock requesting messages are even pushed back
      * in mOutgoingMessages.
      */
     void lockRequested(const std::string& resource, const std::list<Agent>& agents);
@@ -211,10 +214,6 @@ protected:
     void stopRequestingProbes(const std::string& agentName, const std::string resourceName);
     
 private:
-    /**
-     * The actual thread method for probe messages.
-     */
-    void probeExecutor(const std::string& agentName);
     /**
      * Send a probe message to the agent
      */

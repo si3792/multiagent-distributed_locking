@@ -2,7 +2,6 @@
 #include <boost/assign/list_of.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/foreach.hpp>
-#include <boost/thread.hpp>
 
 #include <iostream>
 
@@ -13,29 +12,6 @@
 using namespace fipa;
 using namespace fipa::distributed_locking;
 using namespace fipa::acl;
-
-/**
- * Just a test to see if maps and threads work as I expect.
- */
-BOOST_AUTO_TEST_CASE(test_map_and_threads)
-{
-    std::cout << "test_map_and_threads" << std::endl;
-    
-    std::map<std::string, Agent> mmap;
-    BOOST_CHECK(mmap.count("hono") == 0);
-    //mmap["hono"] = Agent("bogo");
-    mmap["hono"].identifier = "bogo";
-    BOOST_CHECK(mmap.count("hono") != 0);
-    mmap.erase("hono");
-    BOOST_CHECK(mmap.count("hono") == 0);
-    
-    DLM* dlm = DLM::dlmFactory(protocol::RICART_AGRAWALA, Agent("a"), std::vector<std::string>());
-    BOOST_CHECK(dlm->getSelf().identifier == "a");
-    boost::thread* pThread =  new boost::thread (&DLM::setSelf, dlm, Agent("b"));
-    boost::this_thread::sleep_for(boost::chrono::milliseconds(200));
-    BOOST_CHECK(dlm->getSelf().identifier == "b");
-}
-
 
 /**
  * Test correct reactions if an agent fails, that is important.

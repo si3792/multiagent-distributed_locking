@@ -7,7 +7,6 @@
 #include <boost/assign/list_of.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string.hpp>
-#include <boost/thread.hpp>
 
 namespace fipa {
 namespace distributed_locking {
@@ -247,7 +246,7 @@ void DLM::onIncomingProbeMessage(const acl::ACLMessage& message)
     else if(ACLMessage::performativeFromString(message.getPerformative()) == ACLMessage::INFORM)
     {
         // Set success in the ProbeRunner
-        mProbeRunners[message.getSender().getName()].success = true;
+        mProbeRunners[message.getSender().getName()].mSuccess = true;
     }
 }
 
@@ -357,64 +356,57 @@ void DLM::lockReleased(const std::string& resource)
 
 void DLM::startRequestingProbes(const std::string& agentName, const std::string resourceName)
 {
-    if(mProbeRunners.count(agentName) == 0)
-    {
-        // This starts the thread
-        
-        mProbeRunners[agentName].pThread = boost::shared_ptr<boost::thread>(new boost::thread (&DLM::probeExecutor, this, agentName));
-    }
-    else
-    {
-        mProbeRunners[agentName].resources.push_back(resourceName);
-    }
+    mProbeRunners[agentName].mResources.push_back(resourceName);
 }
 
 void DLM::stopRequestingProbes(const std::string& agentName, const std::string resourceName)
 {
     if(mProbeRunners.count(agentName) != 0)
     {
-        mProbeRunners[agentName].resources.remove(resourceName);
-        if(mProbeRunners[agentName].resources.empty())
+        mProbeRunners[agentName].mResources.remove(resourceName);
+        // The following optimizes a little, but is not actually necessary
+        if(mProbeRunners[agentName].mResources.empty())
         {
-            if(mProbeRunners[agentName].pThread != NULL) // XXX why can it even be NULL !?
-            {
-                // This interrupts the thread
-                mProbeRunners[agentName].pThread->interrupt();
-                // Join the thread
-                mProbeRunners[agentName].pThread->join();
-            }
             // delete this ProbeRunner
             mProbeRunners.erase(agentName);  
         }
     }
 }
 
-void DLM::probeExecutor(const std::string& agentName)
+void DLM::trigger()
 {
-    // As long as we're not interrupted
-    while(!boost::this_thread::interruption_requested())
+    // Loop through all ProbeRunners
+    for(std::map<std::string, ProbeRunner>::iterator it = mProbeRunners.begin(); it != mProbeRunners.end(); it++)
     {
-        // Set success to false
-        mProbeRunners[agentName].success = false;
-        // Send the message
-        sendProbe(agentName);
-        // Sleep
-        try 
+        // Only act, if the resource list is not empty
+        if(!it->second.mResources.empty())
         {
-            boost::this_thread::sleep_for(boost::chrono::seconds(probeTimeoutSeconds));
+            // If we already sent a probe message, and it is longer ago than the threshold,
+            // we need to check for a response
+            if(!it->second.mTimeStamp.isNull() && base::Time::now() > it->second.mTimeStamp + base::Time::fromSeconds(probeTimeoutSeconds))
+            {
+                if(it->second.mSuccess)
+                {
+                    // Send another probe and update timestamp
+                    it->second.mTimeStamp = base::Time::now();
+                    sendProbe(it->first);
+                }
+                else
+                {
+                    // The agent failed. Stop annoying it then.
+                    mProbeRunners.erase(it->first);
+                    // And call agentFailed
+                    agentFailed(it->first);
+                }
+            }
+            // If we never sent a probe message, we better get going
+            if(it->second.mTimeStamp.isNull())
+            {
+                it->second.mTimeStamp = base::Time::now();
+                sendProbe(it->first);
+            }
         }
-        catch(const boost::thread_interrupted& e)
-        {
-            // Abort
-            break;
-        }
-        // Check for success
-        if(!mProbeRunners[agentName].success)
-        {
-            agentFailed(agentName);
-            break;
-        }
-    }  
+    }
 }
 
 void DLM::sendProbe(const std::string& agentName)
