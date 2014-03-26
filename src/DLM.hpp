@@ -146,9 +146,10 @@ protected:
     struct ProbeRunner
     {
         // The actual thread
-        boost::thread* pThread;
+        boost::shared_ptr<boost::thread> pThread;
+        //boost::thread* pThread;
         /**
-         * A list of resources (and the string "dlm") for which probes have been requested.
+         * A list of resources for which probes have been requested.
          * Sending them will only be stopped, if the list is empty.
          */
         std::list<std::string> resources;

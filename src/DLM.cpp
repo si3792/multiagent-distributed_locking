@@ -205,11 +205,18 @@ void DLM::onIncomingDLMMessage(const acl::ACLMessage& message)
         if(strs[0] == "LOCK")
         {
             mLockHolders[strs[1]] = message.getSender().getName();
+            // Start sending PROBE messages to the owner
+            startRequestingProbes(message.getSender().getName(), strs[1]);
         }
-        else if(strs[0] == "UNLOCK" && message.getSender().getName() == mLockHolders[strs[1]])
+        else if(strs[0] == "UNLOCK")
         {
-            // Only erase if the sender was the logical owner, as messages can come in wrong order
-            mLockHolders.erase(strs[1]);
+            // Stop sending PROBE messages to the owner
+            stopRequestingProbes(message.getSender().getName(), strs[1]);
+            if(message.getSender().getName() == mLockHolders[strs[1]])
+            {
+                // Only erase if the sender was the logical owner, as messages can come in wrong order
+                mLockHolders.erase(strs[1]);
+            }
         }
         else if(strs[0] == "OWNER")
         {
@@ -350,10 +357,11 @@ void DLM::lockReleased(const std::string& resource)
 
 void DLM::startRequestingProbes(const std::string& agentName, const std::string resourceName)
 {
-    if(mProbeRunners.count(agentName) == 0) // TODO does this consider default threads?
+    if(mProbeRunners.count(agentName) == 0)
     {
         // This starts the thread
-        mProbeRunners[agentName].pThread = new boost::thread (&DLM::probeExecutor, this, agentName); // FIXME I doubt this actually works
+        
+        mProbeRunners[agentName].pThread = boost::shared_ptr<boost::thread>(new boost::thread (&DLM::probeExecutor, this, agentName));
     }
     else
     {
@@ -363,13 +371,20 @@ void DLM::startRequestingProbes(const std::string& agentName, const std::string 
 
 void DLM::stopRequestingProbes(const std::string& agentName, const std::string resourceName)
 {
-    if(mProbeRunners.count(agentName) != 0) // TODO does this consider default threads?
+    if(mProbeRunners.count(agentName) != 0)
     {
         mProbeRunners[agentName].resources.remove(resourceName);
         if(mProbeRunners[agentName].resources.empty())
         {
-            // This interrupts the thread
-            mProbeRunners[agentName].pThread->interrupt();
+            if(mProbeRunners[agentName].pThread != NULL) // XXX why can it even be NULL !?
+            {
+                // This interrupts the thread
+                mProbeRunners[agentName].pThread->interrupt();
+                // Join the thread
+                mProbeRunners[agentName].pThread->join();
+            }
+            // delete this ProbeRunner
+            mProbeRunners.erase(agentName);  
         }
     }
 }
@@ -399,9 +414,7 @@ void DLM::probeExecutor(const std::string& agentName)
             agentFailed(agentName);
             break;
         }
-    }
-    // delete this ProbeRunner
-    mProbeRunners.erase(agentName);    
+    }  
 }
 
 void DLM::sendProbe(const std::string& agentName)

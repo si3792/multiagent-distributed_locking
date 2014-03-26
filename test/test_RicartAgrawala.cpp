@@ -2,6 +2,7 @@
 #include <boost/assign/list_of.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/foreach.hpp>
+#include <boost/thread.hpp>
 
 #include <iostream>
 
@@ -12,6 +13,29 @@
 using namespace fipa;
 using namespace fipa::distributed_locking;
 using namespace fipa::acl;
+
+/**
+ * Just a test to see if maps and threads work as I expect.
+ */
+BOOST_AUTO_TEST_CASE(test_map_and_threads)
+{
+    std::cout << "test_map_and_threads" << std::endl;
+    
+    std::map<std::string, Agent> mmap;
+    BOOST_CHECK(mmap.count("hono") == 0);
+    //mmap["hono"] = Agent("bogo");
+    mmap["hono"].identifier = "bogo";
+    BOOST_CHECK(mmap.count("hono") != 0);
+    mmap.erase("hono");
+    BOOST_CHECK(mmap.count("hono") == 0);
+    
+    DLM* dlm = DLM::dlmFactory(protocol::RICART_AGRAWALA, Agent("a"), std::vector<std::string>());
+    BOOST_CHECK(dlm->getSelf().identifier == "a");
+    boost::thread* pThread =  new boost::thread (&DLM::setSelf, dlm, Agent("b"));
+    boost::this_thread::sleep_for(boost::chrono::milliseconds(200));
+    BOOST_CHECK(dlm->getSelf().identifier == "b");
+}
+
 
 /**
  * Test correct reactions if an agent fails, that is important.
@@ -40,24 +64,27 @@ BOOST_AUTO_TEST_CASE(ricart_agrawala_failing_agent_important)
 
     // Now we simulate a failure of dlm1
     dlm2->lock(rsc1, boost::assign::list_of(a1));
-    // No message forwarding!
-    ACLMessage msgOut = dlm2->popNextOutgoingMessage();
-
-    ACLMessage innerFailureMsg;
-    innerFailureMsg.setPerformative(ACLMessage::INFORM);
-    innerFailureMsg.setSender(AgentID(a2.identifier));
-    innerFailureMsg.addReceiver(AgentID(a1.identifier));
-    innerFailureMsg.setContent("description: message delivery failed");
-    ACLMessage outerFailureMsg;
-    outerFailureMsg.setPerformative(ACLMessage::FAILURE);
-    outerFailureMsg.setSender(AgentID("mts"));
-    outerFailureMsg.addReceiver(AgentID(a2.identifier));
-    outerFailureMsg.setOntology("fipa-agent-management");
-    outerFailureMsg.setProtocol(msgOut.getProtocol());
-    outerFailureMsg.setConversationID(msgOut.getConversationID());
-    outerFailureMsg.setContent(innerFailureMsg.toString());
-    
-    dlm2->onIncomingMessage(outerFailureMsg);
+    // No message forwarding
+    // There can be multiple outgoing messages!
+    while(dlm2->hasOutgoingMessages())
+    {
+        ACLMessage msgOut = dlm2->popNextOutgoingMessage();
+        ACLMessage innerFailureMsg;
+        innerFailureMsg.setPerformative(ACLMessage::INFORM);
+        innerFailureMsg.setSender(AgentID(a2.identifier));
+        innerFailureMsg.addReceiver(AgentID(a1.identifier));
+        innerFailureMsg.setContent("description: message delivery failed");
+        ACLMessage outerFailureMsg;
+        outerFailureMsg.setPerformative(ACLMessage::FAILURE);
+        outerFailureMsg.setSender(AgentID("mts"));
+        outerFailureMsg.addReceiver(AgentID(a2.identifier));
+        outerFailureMsg.setOntology("fipa-agent-management");
+        outerFailureMsg.setProtocol(msgOut.getProtocol());
+        outerFailureMsg.setConversationID(msgOut.getConversationID());
+        outerFailureMsg.setContent(innerFailureMsg.toString());
+        
+        dlm2->onIncomingMessage(outerFailureMsg);
+    }
     
     // a1 was owner of rsc1, so he should be considered important.
     // therefore, a2 should mark the resource as unobtainable
@@ -91,23 +118,26 @@ BOOST_AUTO_TEST_CASE(ricart_agrawala_failing_agent_not_important)
     // Now we simulate a failure of dlm1
     dlm2->lock(rsc1, boost::assign::list_of(a1));
     // No message forwarding!
-    ACLMessage msgOut = dlm2->popNextOutgoingMessage();
-
-    ACLMessage innerFailureMsg;
-    innerFailureMsg.setPerformative(ACLMessage::INFORM);
-    innerFailureMsg.setSender(AgentID(a2.identifier));
-    innerFailureMsg.addReceiver(AgentID(a1.identifier));
-    innerFailureMsg.setContent("description: message delivery failed");
-    ACLMessage outerFailureMsg;
-    outerFailureMsg.setPerformative(ACLMessage::FAILURE);
-    outerFailureMsg.setSender(AgentID("mts"));
-    outerFailureMsg.addReceiver(AgentID(a2.identifier));
-    outerFailureMsg.setOntology("fipa-agent-management");
-    outerFailureMsg.setProtocol(msgOut.getProtocol());
-    outerFailureMsg.setConversationID(msgOut.getConversationID());
-    outerFailureMsg.setContent(innerFailureMsg.toString());
-    
-    dlm2->onIncomingMessage(outerFailureMsg);
+    // There can be multiple outgoing messages!
+    while(dlm2->hasOutgoingMessages())
+    {
+        ACLMessage msgOut = dlm2->popNextOutgoingMessage();
+        ACLMessage innerFailureMsg;
+        innerFailureMsg.setPerformative(ACLMessage::INFORM);
+        innerFailureMsg.setSender(AgentID(a2.identifier));
+        innerFailureMsg.addReceiver(AgentID(a1.identifier));
+        innerFailureMsg.setContent("description: message delivery failed");
+        ACLMessage outerFailureMsg;
+        outerFailureMsg.setPerformative(ACLMessage::FAILURE);
+        outerFailureMsg.setSender(AgentID("mts"));
+        outerFailureMsg.addReceiver(AgentID(a2.identifier));
+        outerFailureMsg.setOntology("fipa-agent-management");
+        outerFailureMsg.setProtocol(msgOut.getProtocol());
+        outerFailureMsg.setConversationID(msgOut.getConversationID());
+        outerFailureMsg.setContent(innerFailureMsg.toString());
+        
+        dlm2->onIncomingMessage(outerFailureMsg);
+    }
     
     // a1 was not owner of rsc1, so he should be considered not important.
     // therefore, a2 should hold the lock now
