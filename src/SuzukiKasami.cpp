@@ -287,7 +287,17 @@ void SuzukiKasami::handleIncomingFailure(const std::string& resource, std::strin
 
 void SuzukiKasami::agentFailed(const std::string& agentName)
 {
-    // TODO
+    // Determine all resources, where the agent is a communication partner
+    for(std::map<std::string, ResourceLockState>::const_iterator it = mLockStates.begin(); it != mLockStates.end(); it++)
+    {
+        // If we're interested and communicated with that agent
+        if(it->second.mState == lock_state::INTERESTED &&
+            std::find(it->second.mCommunicationPartners.begin(), it->second.mCommunicationPartners.end(), Agent(agentName)) != it->second.mCommunicationPartners.end())
+        {
+            handleIncomingFailure(it->first, agentName);
+        }
+    }
+    // If we're not interested, we can ignore that
 }
 
 void SuzukiKasami::extractInformation(const acl::ACLMessage& message, std::string& resource, int& sequence_number)

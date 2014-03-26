@@ -193,7 +193,8 @@ void RicartAgrawala::handleIncomingResponse(const fipa::acl::ACLMessage& message
         return;
     }
     
-    // Save the sender TODO if agent becomes more complex, we need to copy it from mCommunicationPartners,
+    // Save the sender 
+    // XXX if agent becomes more complex, we need to copy it from mCommunicationPartners,
     // instead of creating a new one
     mLockStates[resource].mResponded.push_back(Agent (message.getSender().getName()));
     // Sort agents who responded
@@ -271,7 +272,18 @@ void RicartAgrawala::handleIncomingFailure(const std::string& resource, std::str
 
 void RicartAgrawala::agentFailed(const std::string& agentName)
 {
-    // TODO
+    // Determine all resources, where we await an answer from that agent
+    for(std::map<std::string, ResourceLockState>::const_iterator it = mLockStates.begin(); it != mLockStates.end(); it++)
+    {
+        // If we're interested and await an answer from that agent...
+        if(it->second.mState == lock_state::INTERESTED &&
+            std::find(it->second.mCommunicationPartners.begin(), it->second.mCommunicationPartners.end(), Agent(agentName)) != it->second.mCommunicationPartners.end() &&
+            std::find(it->second.mResponded.begin(), it->second.mResponded.end(), Agent(agentName)) == it->second.mResponded.end())
+        {
+            handleIncomingFailure(it->first, agentName);
+        }
+        // If we're not interested or the agent already responded, we can ignore that
+    }
 }
 
 void RicartAgrawala::extractInformation(const fipa::acl::ACLMessage& message, base::Time& time, std::string& resource)

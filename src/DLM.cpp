@@ -114,7 +114,8 @@ void DLM::onIncomingMessage(const acl::ACLMessage& message)
     }
     
     // Check if it's the right protocol
-    if(message.getProtocol() != dlmProtocolStr)
+    std::string protocol = message.getProtocol();
+    if(protocol != dlmProtocolStr && protocol != probeProtocolStr)
     {
         return;
     }
@@ -136,6 +137,20 @@ void DLM::onIncomingMessage(const acl::ACLMessage& message)
         return;
     }
     
+    // Call either dlm or probe method
+    if(protocol == dlmProtocolStr)
+    {
+        onIncomingDLMMessage(message);
+    }
+    else if(protocol == probeProtocolStr)
+    {
+        onIncomingProbeMessage(message);
+    }
+}
+
+void DLM::onIncomingDLMMessage(const acl::ACLMessage& message)
+{
+    using namespace fipa::acl;
     if(ACLMessage::performativeFromString(message.getPerformative()) == ACLMessage::REQUEST)
     {
         std::string resource = message.getContent();
@@ -200,6 +215,32 @@ void DLM::onIncomingMessage(const acl::ACLMessage& message)
         {
             mOwnedResources[strs[1]] = message.getSender().getName();
         }
+    }
+}
+
+void DLM::onIncomingProbeMessage(const acl::ACLMessage& message)
+{
+    using namespace fipa::acl;
+    if(ACLMessage::performativeFromString(message.getPerformative()) == ACLMessage::REQUEST)
+    {
+        // Answer with Inform:SUCCESS
+        ACLMessage response;
+        response.setPerformative(ACLMessage::INFORM);
+        response.setContent("SUCCESS");
+        // Add sender and receiver
+        response.setSender(AgentID(mSelf.identifier));
+        response.addReceiver(message.getSender());
+        // Set and increase conversation ID
+        response.setConversationID(message.getConversationID());
+        // The PROBE protocol is not in the Protocol enum, as it is not a DLM implementation!
+        response.setProtocol(probeProtocolStr);
+        // Add to outgoing messages
+        mOutgoingMessages.push_back(response);
+    }
+    else if(ACLMessage::performativeFromString(message.getPerformative()) == ACLMessage::INFORM)
+    {
+        // Set success in the ProbeRunner
+        mProbeRunners[message.getSender().getName()].success = true;
     }
 }
 
@@ -307,21 +348,29 @@ void DLM::lockReleased(const std::string& resource)
     }
 }
 
-void DLM::startRequestingProbes(const std::string& agentName)
+void DLM::startRequestingProbes(const std::string& agentName, const std::string resourceName)
 {
-    if(mProbeThreads.count(agentName) == 0) // TODO does this consider default threads?
+    if(mProbeRunners.count(agentName) == 0) // TODO does this consider default threads?
     {
         // This starts the thread
-        mProbeThreads[agentName] = new boost::thread (&DLM::probeExecutor, this, agentName); // FIXME I doubt this actually works
+        mProbeRunners[agentName].pThread = new boost::thread (&DLM::probeExecutor, this, agentName); // FIXME I doubt this actually works
+    }
+    else
+    {
+        mProbeRunners[agentName].resources.push_back(resourceName);
     }
 }
 
-void DLM::stopRequestingProbes(const std::string& agentName)
+void DLM::stopRequestingProbes(const std::string& agentName, const std::string resourceName)
 {
-    if(mProbeThreads.count(agentName) != 0) // TODO does this consider default threads?
+    if(mProbeRunners.count(agentName) != 0) // TODO does this consider default threads?
     {
-        // This interrupts the thread
-        mProbeThreads[agentName]->interrupt();
+        mProbeRunners[agentName].resources.remove(resourceName);
+        if(mProbeRunners[agentName].resources.empty())
+        {
+            // This interrupts the thread
+            mProbeRunners[agentName].pThread->interrupt();
+        }
     }
 }
 
@@ -330,17 +379,46 @@ void DLM::probeExecutor(const std::string& agentName)
     // As long as we're not interrupted
     while(!boost::this_thread::interruption_requested())
     {
-        //probe();
-        try {
-        boost::this_thread::sleep_for(boost::chrono::seconds(probeTimeoutSeconds)); // TODO constant TODO try-catch
+        // Set success to false
+        mProbeRunners[agentName].success = false;
+        // Send the message
+        sendProbe(agentName);
+        // Sleep
+        try 
+        {
+            boost::this_thread::sleep_for(boost::chrono::seconds(probeTimeoutSeconds));
         }
         catch(const boost::thread_interrupted& e)
         {
             // Abort
             break;
         }
-        
+        // Check for success
+        if(!mProbeRunners[agentName].success)
+        {
+            agentFailed(agentName);
+            break;
+        }
     }
+    // delete this ProbeRunner
+    mProbeRunners.erase(agentName);    
+}
+
+void DLM::sendProbe(const std::string& agentName)
+{
+    using namespace fipa::acl;
+    ACLMessage message;
+    message.setPerformative(ACLMessage::REQUEST);
+    message.setContent("PROBE");
+    // Add sender and receiver
+    message.setSender(AgentID(mSelf.identifier));
+    message.addReceiver(AgentID(agentName));
+    // Set and increase conversation ID
+    message.setConversationID(mSelf.identifier + "_" + boost::lexical_cast<std::string>(mConversationIDnum++));
+    // The PROBE protocol is not in the Protocol enum, as it is not a DLM implementation!
+    message.setProtocol(probeProtocolStr);
+    // Add to outgoing messages
+    mOutgoingMessages.push_back(message);
 }
 
 } // namespace distributed_locking

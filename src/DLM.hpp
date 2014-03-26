@@ -140,6 +140,22 @@ public:
     virtual void agentFailed(const std::string& agentName);
 
 protected:
+    /**
+     * A structure for organizing threads that send PROBE messages.
+     */
+    struct ProbeRunner
+    {
+        // The actual thread
+        boost::thread* pThread;
+        /**
+         * A list of resources (and the string "dlm") for which probes have been requested.
+         * Sending them will only be stopped, if the list is empty.
+         */
+        std::list<std::string> resources;
+        // Whether the partner responded
+        volatile bool success;
+    };
+    
     // A mapping between protocols and strings
     static std::map<protocol::Protocol, std::string> protocolTxt;
     // The protocol strings
@@ -165,7 +181,7 @@ protected:
     // The (logical) lock holders of the owned resources. Maps resource->agent
     std::map<std::string, std::string> mLockHolders;
     // All running probe threads
-    std::map<std::string, boost::thread*> mProbeThreads;
+    std::map<std::string, ProbeRunner> mProbeRunners;
     
     /**
      * This method MUST be called by implementing subclasses, when the lock is requested.
@@ -187,17 +203,30 @@ protected:
     /**
      * Tells the DLM to send PROBE messages to the agent in intervals, and call agentFailed, if it does not respond.
      */
-    void startRequestingProbes(const std::string& agentName);
+    void startRequestingProbes(const std::string& agentName, const std::string resourceName);
     /**
      * Tells the DLM to stop sending PROBE messages to the agent.
      */
-    void stopRequestingProbes(const std::string& agentName);
+    void stopRequestingProbes(const std::string& agentName, const std::string resourceName);
     
 private:
     /**
      * The actual thread method for probe messages.
      */
     void probeExecutor(const std::string& agentName);
+    /**
+     * Send a probe message to the agent
+     */
+    void sendProbe(const std::string& agentName);
+    
+    /**
+     * Handles incoming DLm messages
+     */
+    void onIncomingDLMMessage(const fipa::acl::ACLMessage& message);
+    /**
+     * Handles incoming Probe messages
+     */
+    void onIncomingProbeMessage(const fipa::acl::ACLMessage& message);
 };
 
 } // namespace distributed_locking
