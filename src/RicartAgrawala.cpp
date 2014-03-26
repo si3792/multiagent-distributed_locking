@@ -193,10 +193,8 @@ void RicartAgrawala::handleIncomingResponse(const fipa::acl::ACLMessage& message
         return;
     }
     
-    // Save the sender 
-    // XXX if agent becomes more complex, we need to copy it from mCommunicationPartners,
-    // instead of creating a new one
-    mLockStates[resource].mResponded.push_back(Agent (message.getSender().getName()));
+    // Save that the sender responded
+    addRespondedAgent(message.getSender().getName(), resource);
     // Sort agents who responded
     mLockStates[resource].mResponded.sort();
     
@@ -209,6 +207,14 @@ void RicartAgrawala::handleIncomingResponse(const fipa::acl::ACLMessage& message
         lockObtained(resource);
     }
 }
+
+void RicartAgrawala::addRespondedAgent(std::string agentName, std::string resource)
+{
+    // XXX if agent becomes more complex, we need to copy it from mCommunicationPartners,
+    // instead of creating a new one
+    mLockStates[resource].mResponded.push_back(Agent (agentName));
+}
+
 
 void RicartAgrawala::handleIncomingFailure(const fipa::acl::ACLMessage& message)
 {

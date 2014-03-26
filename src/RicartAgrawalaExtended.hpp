@@ -29,6 +29,15 @@ public:
      * Constructor
      */
     RicartAgrawalaExtended(const Agent& self, const std::vector<std::string>& resources);
+    
+    /**
+     * Tries to lock a resource. Subsequently, isLocked() must be called to check the status.
+     */
+    virtual void lock(const std::string& resource, const std::list<Agent>& agents);
+    /**
+     * Adds an agent to the ones that responded.
+     */
+    virtual void addRespondedAgent(std::string agentName, std::string resource);
 };
 } // namespace distributed_locking
 } // namespace fipa

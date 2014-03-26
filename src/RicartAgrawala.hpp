@@ -83,7 +83,7 @@ protected:
      */
     void handleIncomingRequest(const fipa::acl::ACLMessage& message);
     /**
-     * Handles an incoming response
+     * Handles an incoming response.
      */
     void handleIncomingResponse(const fipa::acl::ACLMessage& message);
     /**
@@ -102,6 +102,12 @@ protected:
      * Sends all deferred messages for a certain resource by putting them into outgoingMessages
      */
     void sendAllDeferredMessages(const std::string& resource);
+    
+    /**
+     * Adds an agent to the ones that responded. This one-liner is encapsulated in a virtual method,
+     * so that the extended algorithm can easily extend the behaviour.
+     */
+    virtual void addRespondedAgent(std::string agentName, std::string resource);
     
 };
 } // namespace distributed_locking
