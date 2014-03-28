@@ -5,9 +5,6 @@
 #include "Agent.hpp"
 #include <fipa_acl/fipa_acl.h>
 
-#include <deque>
-#include <map>
-
 namespace fipa {
 namespace distributed_locking {
 /**
@@ -53,7 +50,7 @@ public:
      */
     virtual void agentFailed(const std::string& agentName);
 
-private:
+protected:
     /**
      * A token used in this protocol.
      */
@@ -126,6 +123,10 @@ private:
      * Send the token to the receiver. No checks (token held, lock not held) are made!
      */
     void sendToken(const fipa::acl::AgentID& receiver, const std::string& resource, const std::string& conversationID);
+    /**
+     * Forwards the token to the next person in the queue.
+     */
+    void forwardToken(const std::string& resource);
     
 };
 } // namespace distributed_locking

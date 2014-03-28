@@ -116,18 +116,23 @@ void SuzukiKasami::unlock(const std::string& resource)
                 mLockStates[resource].mToken.mQueue.push_back(it->first);
             }
         }
-        // Forward token if there's a pending request (queue not empty)
-        if(!mLockStates[resource].mToken.mQueue.empty())
-        {
-            std::string agentID = mLockStates[resource].mToken.mQueue.front();
-            mLockStates[resource].mToken.mQueue.pop_front();
-            sendToken(fipa::acl::AgentID (agentID), resource, mSelf.identifier + "_" + boost::lexical_cast<std::string>(mConversationIDnum++));
-        }
-        // Else keep token
+        forwardToken(resource);
         
         // Let the base class know we released the lock
         lockReleased(resource);
     }
+}
+
+void SuzukiKasami::forwardToken(const std::string& resource)
+{
+    // Forward token if there's a pending request (queue not empty)
+    if(!mLockStates[resource].mToken.mQueue.empty())
+    {
+        std::string agentID = mLockStates[resource].mToken.mQueue.front();
+        mLockStates[resource].mToken.mQueue.pop_front();
+        sendToken(fipa::acl::AgentID (agentID), resource, mSelf.identifier + "_" + boost::lexical_cast<std::string>(mConversationIDnum++));
+    }
+    // Else keep token
 }
 
 lock_state::LockState SuzukiKasami::getLockState(const std::string& resource) const
@@ -227,6 +232,7 @@ void SuzukiKasami::handleIncomingResponse(const fipa::acl::ACLMessage& message)
     // Following, a response is only relevant if we're "INTERESTED"
     if(getLockState(resource) != lock_state::INTERESTED)
     {
+        forwardToken(resource);
         return;
     }
     // Now we can lock the resource

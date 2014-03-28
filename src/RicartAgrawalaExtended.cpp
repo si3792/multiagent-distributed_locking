@@ -1,9 +1,6 @@
 #include "RicartAgrawalaExtended.hpp"
 
-#include <boost/lexical_cast.hpp>
-#include <boost/algorithm/string.hpp>
 #include <string>
-#include <stdexcept>
 
 namespace fipa {
 namespace distributed_locking {

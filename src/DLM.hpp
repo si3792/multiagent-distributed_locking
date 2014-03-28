@@ -67,9 +67,9 @@ namespace protocol {
     \enum Protocol
     \brief an enum of all the implementations
 */
-enum Protocol { RICART_AGRAWALA = 0, RICART_AGRAWALA_EXTENDED, SUZUKI_KASAMI,
+enum Protocol { RICART_AGRAWALA = 0, RICART_AGRAWALA_EXTENDED, SUZUKI_KASAMI, SUZUKI_KASAMI_EXTENDED,
     // Following values only for enumertaing over this enum
-    PROTOCOL_START = RICART_AGRAWALA, PROTOCOL_END = SUZUKI_KASAMI
+    PROTOCOL_START = RICART_AGRAWALA, PROTOCOL_END = SUZUKI_KASAMI_EXTENDED
 };    
 } // namespace protocol
 
