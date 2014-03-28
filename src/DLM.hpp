@@ -90,6 +90,11 @@ public:
     DLM();
     
     /**
+     * Always include a virtual destructor in polymorphic base classes.
+     */
+    virtual ~DLM();
+    
+    /**
      * For a given Protocol, returns its textual value.
      */
     static std::string getProtocolTxt(protocol::Protocol protocol);
@@ -102,7 +107,7 @@ public:
     /**
      * Gets the agent this DLM works with.
      */
-    const Agent& getSelf();
+    const Agent& getSelf() const;
 
     /**
      * Gets the next outgoing message, and removes it from the internal queue. Used by the higher instance that uses this library.
@@ -112,7 +117,7 @@ public:
     /**
      * True, if there are outgoing messages than can be obtained with popNextOutgoingMessage.
      */
-    bool hasOutgoingMessages();
+    bool hasOutgoingMessages() const;
     
     /**
      * This method MUST be called periodically by the wrapping component. It runs everything, that needs to be done regularly.
@@ -131,7 +136,7 @@ public:
     /**
      * Gets the lock state for a resource.
      */
-    virtual lock_state::LockState getLockState(const std::string& resource);
+    virtual lock_state::LockState getLockState(const std::string& resource) const;
 
     /**
      * This message is triggered by the higher instance that uses this library, if a message is received. Sequential calls must be guaranteed.

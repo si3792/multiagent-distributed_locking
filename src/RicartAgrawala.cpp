@@ -88,9 +88,17 @@ void RicartAgrawala::unlock(const std::string& resource)
     }
 }
 
-lock_state::LockState RicartAgrawala::getLockState(const std::string& resource)
+lock_state::LockState RicartAgrawala::getLockState(const std::string& resource) const
 {
-    return mLockStates[resource].mState;
+    if(mLockStates.count(resource) != 0)
+    {
+        return mLockStates.at(resource).mState;
+    }
+    else
+    {
+        // Otherwise return the default state
+        return lock_state::NOT_INTERESTED;
+    }
 }
 
 void RicartAgrawala::onIncomingMessage(const fipa::acl::ACLMessage& message)

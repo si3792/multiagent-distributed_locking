@@ -85,8 +85,7 @@ BOOST_AUTO_TEST_CASE(ricart_agrawala_failing_agent_not_important)
     std::vector<std::string> rscs;
     rscs.push_back(rsc1);
 
-    // Create 2 DLMs
-    DLM* dlm1 = DLM::dlmFactory(protocol::RICART_AGRAWALA, a1, std::vector<std::string>());
+    // Create only a dlm for a2 (a1 is "dead")
     DLM* dlm2 = DLM::dlmFactory(protocol::RICART_AGRAWALA, a2, rscs);
 
     // dlm2 owns rsc1 and therefore knows he's the owner

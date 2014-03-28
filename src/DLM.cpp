@@ -53,12 +53,17 @@ DLM::DLM(const Agent& self, const std::vector<std::string>& resources)
     }
 }
 
+DLM::~DLM()
+{
+    // Nothing to do here.
+}
+
 std::string DLM::getProtocolTxt(protocol::Protocol protocol)
 {
     return protocolTxt[protocol];
 }
 
-const Agent& DLM::getSelf()
+const Agent& DLM::getSelf() const
 {
     return mSelf;
 }
@@ -79,7 +84,7 @@ fipa::acl::ACLMessage DLM::popNextOutgoingMessage()
     return msg;
 }
 
-bool DLM::hasOutgoingMessages()
+bool DLM::hasOutgoingMessages() const
 {
     return mOutgoingMessages.size() != 0;
 }
@@ -94,7 +99,7 @@ void DLM::unlock(const std::string& resource)
     throw std::runtime_error("DLM::unlock not implemented");
 }
 
-lock_state::LockState DLM::getLockState(const std::string& resource)
+lock_state::LockState DLM::getLockState(const std::string& resource) const
 {
     throw std::runtime_error("DLM::getLockState not implemented");
 }
@@ -390,6 +395,7 @@ void DLM::trigger()
                     // Send another probe and update timestamp
                     it->second.mTimeStamp = base::Time::now();
                     sendProbe(it->first);
+                    std::cout << mSelf.identifier << " sent probe to " << it->first << " after getting a success response." << std::endl;
                 }
                 else
                 {
@@ -397,6 +403,7 @@ void DLM::trigger()
                     mProbeRunners.erase(it->first);
                     // And call agentFailed
                     agentFailed(it->first);
+                    std::cout << mSelf.identifier << " got no response from " << it->first  << std::endl;
                 }
             }
             // If we never sent a probe message, we better get going
@@ -404,6 +411,7 @@ void DLM::trigger()
             {
                 it->second.mTimeStamp = base::Time::now();
                 sendProbe(it->first);
+                std::cout << mSelf.identifier << " sent probe to " << it->first << " for the first time." << std::endl;
             }
         }
     }
@@ -411,6 +419,9 @@ void DLM::trigger()
 
 void DLM::sendProbe(const std::string& agentName)
 {
+    // When sending a probe, success is false until we get a response
+    mProbeRunners[agentName].mSuccess = false;
+    
     using namespace fipa::acl;
     ACLMessage message;
     message.setPerformative(ACLMessage::REQUEST);

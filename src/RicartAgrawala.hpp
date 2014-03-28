@@ -42,7 +42,7 @@ public:
     /**
      * Gets the lock state for a resource.
      */
-    virtual lock_state::LockState getLockState(const std::string& resource);
+    virtual lock_state::LockState getLockState(const std::string& resource) const;
     /**
      * This message is triggered by the higher instance that uses this library, if a message is received. Sequential calls must be guaranteed.
      * Subclasses MUST call the base implementation, as there are also direct DLM messages not belonging to any underlying protocol.
