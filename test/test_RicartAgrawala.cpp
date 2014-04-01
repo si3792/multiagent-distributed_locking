@@ -48,7 +48,7 @@ BOOST_AUTO_TEST_CASE(ricart_agrawala_failing_agent_important)
         ACLMessage innerFailureMsg;
         innerFailureMsg.setPerformative(ACLMessage::INFORM);
         innerFailureMsg.setSender(AgentID(a2.identifier));
-        innerFailureMsg.addReceiver(AgentID(a1.identifier));
+        innerFailureMsg.setAllReceivers(msgOut.getAllReceivers());
         innerFailureMsg.setContent("description: message delivery failed");
         ACLMessage outerFailureMsg;
         outerFailureMsg.setPerformative(ACLMessage::FAILURE);

@@ -61,7 +61,7 @@ BOOST_AUTO_TEST_CASE(ricart_agrawala_extended_non_responding_agent)
     
     // A2 tries to lock again
     dlm2->lock(rsc1, boost::assign::list_of(a1));
-    forwardAllMessages(boost::assign::list_of(dlm2)(dlm1)(dlm3));
+    forwardAllMessages(boost::assign::list_of(dlm2)(dlm1));
 
     // Now, agent1 dies (it did not respond a2 yet, as it still holds the lock)
     dlm2->trigger();

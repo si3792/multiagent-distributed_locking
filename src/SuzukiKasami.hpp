@@ -102,7 +102,7 @@ protected:
     /**
      * Handles an incoming response
      */
-    void handleIncomingResponse(const fipa::acl::ACLMessage& message);
+    virtual void handleIncomingResponse(const fipa::acl::ACLMessage& message);
     /**
      * Handles an incoming failure
      */
@@ -122,11 +122,15 @@ protected:
     /**
      * Send the token to the receiver. No checks (token held, lock not held) are made!
      */
-    void sendToken(const fipa::acl::AgentID& receiver, const std::string& resource, const std::string& conversationID);
+    virtual void sendToken(const fipa::acl::AgentID& receiver, const std::string& resource, const std::string& conversationID);
     /**
      * Forwards the token to the next person in the queue.
      */
-    void forwardToken(const std::string& resource);
+    virtual void forwardToken(const std::string& resource);
+    /**
+     * Will always return false, as the original SuzukiKasami algorithm cannot keep track of the token owners.
+     */
+    virtual bool isTokenHolder(const std::string& resource, const std::string& agentName);
     
 };
 } // namespace distributed_locking

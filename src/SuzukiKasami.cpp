@@ -9,6 +9,7 @@
 #include <string>
 #include <sstream>
 #include <stdexcept>
+#include <deque>
 
 namespace fipa {
 namespace distributed_locking {
@@ -83,8 +84,6 @@ void SuzukiKasami::lock(const std::string& resource, const std::list<Agent>& age
     
     // Change internal state (seq_no already changed)
     mLockStates[resource].mCommunicationPartners = agents;
-    // Sort agents
-    mLockStates[resource].mCommunicationPartners.sort();
     mLockStates[resource].mState = lock_state::INTERESTED;
     mLockStates[resource].mConversationID = message.getConversationID();
 
@@ -102,20 +101,7 @@ void SuzukiKasami::unlock(const std::string& resource)
         // Update ID to have been executed
         mLockStates[resource].mToken.mLastRequestNumber[mSelf.identifier] = mLockStates[resource].mRequestNumber[mSelf.identifier];
         
-        // Iterate through all RequestNumbers known to the agent
-        for(std::map<std::string, int>::iterator it = mLockStates[resource].mRequestNumber.begin();
-            it != mLockStates[resource].mRequestNumber.end(); it++)
-        {
-            // If the request number of another agent is higher than the same request number known to the token
-            // that means he requested the token. If he is not already in the queue, we add it.
-            if(it->second == mLockStates[resource].mToken.mLastRequestNumber[it->first] + 1
-                && std::find(mLockStates[resource].mToken.mQueue.begin(), mLockStates[resource].mToken.mQueue.end(), it->first) 
-                == mLockStates[resource].mToken.mQueue.end()
-            )
-            {
-                mLockStates[resource].mToken.mQueue.push_back(it->first);
-            }
-        }
+        // Forward the token
         forwardToken(resource);
         
         // Let the base class know we released the lock
@@ -125,6 +111,21 @@ void SuzukiKasami::unlock(const std::string& resource)
 
 void SuzukiKasami::forwardToken(const std::string& resource)
 {
+    // Iterate through all RequestNumbers known to the agent
+    for(std::map<std::string, int>::iterator it = mLockStates[resource].mRequestNumber.begin();
+        it != mLockStates[resource].mRequestNumber.end(); it++)
+    {
+        // If the request number of another agent is higher than the same request number known to the token
+        // that means he requested the token. If he is not already in the queue, we add it.
+        if(it->second == mLockStates[resource].mToken.mLastRequestNumber[it->first] + 1
+            && std::find(mLockStates[resource].mToken.mQueue.begin(), mLockStates[resource].mToken.mQueue.end(), it->first) 
+            == mLockStates[resource].mToken.mQueue.end()
+        )
+        {
+            mLockStates[resource].mToken.mQueue.push_back(it->first);
+        }
+    }
+        
     // Forward token if there's a pending request (queue not empty)
     if(!mLockStates[resource].mToken.mQueue.empty())
     {
@@ -222,7 +223,7 @@ void SuzukiKasami::handleIncomingResponse(const fipa::acl::ACLMessage& message)
     // Extract information
     std::string resource;
     Token token;
-    // This HAS to be done in two steps, as resource is not known before extractInformation return!
+    // This HAS to be done in two steps, as resource is not known before extractInformation returns!
     extractInformation(message, resource, token);
     mLockStates[resource].mToken = token;
     
@@ -255,12 +256,6 @@ void SuzukiKasami::handleIncomingFailure(const fipa::acl::ACLMessage& message)
             break;
         }
     }
-    // Abort if we didn't find a corresponding resource, or are not interested in the resource currently
-    if(resource == "" || mLockStates[resource].mState != lock_state::INTERESTED)
-    {
-        // TODO what do we do, if a response message cannot be delivered?
-        return;
-    }
     
     using namespace fipa::acl;
     // Get intended receivers
@@ -271,47 +266,75 @@ void SuzukiKasami::handleIncomingFailure(const fipa::acl::ACLMessage& message)
     
     for(AgentIDList::const_iterator it = deliveryFailedForAgents.begin(); it != deliveryFailedForAgents.end(); it++)
     {
-        // Now we must handle the failure appropriately
-        handleIncomingFailure(resource, it->getName());
+        if(resource == "")
+        {
+            // This means the message we tried to send was a token/response message.
+            // We also have to deal with the failed agent
+            agentFailed(it->getName());
+            // In the non-extended algorithm, we lost the token and will probably starve now.
+        }
+        else
+        {
+            // Now we must handle the failure appropriately
+            handleIncomingFailure(resource, it->getName());
+        }
     }
 }
 
 void SuzukiKasami::handleIncomingFailure(const std::string& resource, std::string intendedReceiver)
 {
-    bool wasTokenHolder = false;
     // If the physical owner of the resource failed, the ressource probably cannot be obtained any more.
     if(mOwnedResources[resource] == intendedReceiver)
     {
         // Mark resource as unreachable.
         mLockStates[resource].mState = lock_state::UNREACHABLE;
         // We cannot update the token, as we do not possess it, but this is probably no problem if the resource cannot be used any more
+        mLockStates[resource].mHoldingToken = false; // Just to be sure!
     }
-    else if(wasTokenHolder)
+    // This block cannot be triggered if only mLockHolders[resource] == intendedReceiver, as this can be erroneous
+    else if(mOwnedResources[resource] == mSelf.identifier && isTokenHolder(resource, intendedReceiver))
     {
-        // FIXME how to find out if he atually was the tokenholder?
-        // TODO Everyone must revoke their interest, and lock newly.
-        // The physical owner needs to create a new token and becomes the new tokenholder
+        // If we own the resource, we "get" the token again. We rediscover lost queue values by checking against our known request numbers (done in forwardToken)
+        mLockStates[resource].mHoldingToken = true;
+        if(getLockState(resource) != lock_state::INTERESTED)
+        {
+            // If we're not interested, we forward the token
+            forwardToken(resource);
+        }
+        else
+        {
+            // Otherwise we can lock the resource
+            mLockStates[resource].mState = lock_state::LOCKED;
+            // Let the base class know we obtained the lock
+            lockObtained(resource);
+        }
+        // Otherwise somebody will foward the token to us at some point. (else block)
     }
     else
     {
-        // The agent was not important, we just have to remove it from the list of communication partners, as we won't get a response from it
+        // The agent was not important (for us), we have to remove it from the list of communication partners, as we won't get a response from it
         mLockStates[resource].mCommunicationPartners.remove(Agent (intendedReceiver));
+        // We also have to remove his requestNumber(s) and remove him from the queue (relevant if we own the token)
+        mLockStates[resource].mRequestNumber.erase(intendedReceiver);
+        mLockStates[resource].mToken.mLastRequestNumber.erase(intendedReceiver);
+        mLockStates[resource].mToken.mQueue.erase(std::remove(mLockStates[resource].mToken.mQueue.begin(), mLockStates[resource].mToken.mQueue.end(), intendedReceiver),
+                                                  mLockStates[resource].mToken.mQueue.end());
     }
+}
+
+bool SuzukiKasami::isTokenHolder(const std::string& resource, const std::string& agentName)
+{
+    // Only the extension can return a representative value
+    return false;
 }
 
 void SuzukiKasami::agentFailed(const std::string& agentName)
 {
-    // Determine all resources, where the agent is a communication partner
+    // Here,we have to deal with the failure for all resources, as we don't know in which he was involved
     for(std::map<std::string, ResourceLockState>::const_iterator it = mLockStates.begin(); it != mLockStates.end(); it++)
     {
-        // If we're interested and communicated with that agent
-        if(it->second.mState == lock_state::INTERESTED &&
-            std::find(it->second.mCommunicationPartners.begin(), it->second.mCommunicationPartners.end(), Agent(agentName)) != it->second.mCommunicationPartners.end())
-        {
-            handleIncomingFailure(it->first, agentName);
-        }
+        handleIncomingFailure(it->first, agentName);
     }
-    // If we're not interested, we can ignore that
 }
 
 void SuzukiKasami::extractInformation(const acl::ACLMessage& message, std::string& resource, int& sequence_number)
