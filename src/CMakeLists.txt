@@ -1,4 +1,4 @@
-find_package(Boost COMPONENTS serialization system REQUIRED)
+find_package(Boost 1.48 COMPONENTS serialization system REQUIRED)
 
 rock_library(distributed_locking
     SOURCES DLM.cpp RicartAgrawala.cpp RicartAgrawalaExtended.cpp SuzukiKasami.cpp SuzukiKasamiExtended.cpp

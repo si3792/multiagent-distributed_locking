@@ -78,10 +78,10 @@ BOOST_AUTO_TEST_CASE(suzuki_kasami_extended_non_responding_agent)
     dlm1->trigger();
     dlm2->trigger();
     // We sleep 2x 3s (1s more than the threshold) and call the trigger() method again.
-    boost::this_thread::sleep_for(boost::chrono::seconds(3));
+    boost::this_thread::sleep(boost::posix_time::seconds(3));
     // The sleeping is split, so that a2 does not think a1 died.
     forwardAllMessages(boost::assign::list_of(dlm2)(dlm1));
-    boost::this_thread::sleep_for(boost::chrono::seconds(3));
+    boost::this_thread::sleep(boost::posix_time::seconds(3));
     dlm1->trigger();
     dlm2->trigger();
     
@@ -105,7 +105,7 @@ BOOST_AUTO_TEST_CASE(suzuki_kasami_extended_non_responding_agent)
     // Now, agent1 dies
     dlm2->trigger();
     // We sleep 6s (1s more than the threshold) and call the trigger() method again
-    boost::this_thread::sleep_for(boost::chrono::seconds(6));
+    boost::this_thread::sleep(boost::posix_time::seconds(6));
     dlm2->trigger();
     
     // a1 was owner of rsc1, so he should be considered important.

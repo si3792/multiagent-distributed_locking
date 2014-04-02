@@ -1,4 +1,4 @@
-find_package(Boost COMPONENTS system thread REQUIRED)
+find_package(Boost 1.48 COMPONENTS system thread REQUIRED)
 
 rock_testsuite(test_suite suite.cpp
   test_RicartAgrawala.cpp test_RicartAgrawalaExtended.cpp test_SuzukiKasami.cpp test_SuzukiKasamiExtended.cpp TestHelper.cpp
