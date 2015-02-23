@@ -1,7 +1,7 @@
 #ifndef DISTRIBUTED_LOCKING_DLM_HPP
 #define DISTRIBUTED_LOCKING_DLM_HPP
 
-#include "Agent.hpp"
+#include <boost/shared_ptr.hpp>
 #include <fipa_acl/fipa_acl.h>
 
 /** \mainpage Distributed Locking Mechanism
@@ -21,9 +21,9 @@
     using namespace fipa::distributed_locking;
     
     // Create an agent
-    fipa::Agent agent ("agent1");
+    fipa::acl::AgentID agent("agent1");
     // Create the DLM with the desired protocol using the factory method.
-    DLM* dlm = DLM::dlmFactory(protocol::RICART_AGRAWALA, a1);
+    DLM::Ptr dlm = DLM::create(protocol::RICART_AGRAWALA, a1);
     
     ...    
     // Get outgoing messages:
@@ -71,6 +71,7 @@ enum Protocol { RICART_AGRAWALA = 0, RICART_AGRAWALA_EXTENDED, SUZUKI_KASAMI, SU
     // Following values only for enumertaing over this enum
     PROTOCOL_START = RICART_AGRAWALA, PROTOCOL_END = SUZUKI_KASAMI_EXTENDED
 };    
+
 } // namespace protocol
 
 /**
@@ -79,10 +80,12 @@ enum Protocol { RICART_AGRAWALA = 0, RICART_AGRAWALA_EXTENDED, SUZUKI_KASAMI, SU
 class DLM
 {
 public:    
+    typedef boost::shared_ptr<DLM> Ptr;
+
     /**
-     * Factory method to get a pointer to a certain DLM implementation
+     * Factory method to create an instance of a certain DLM implementation
      */
-    static DLM* dlmFactory(fipa::distributed_locking::protocol::Protocol implementation, const fipa::Agent& self, const std::vector<std::string>& resources);
+    static DLM::Ptr create(fipa::distributed_locking::protocol::Protocol implementation, const fipa::acl::AgentID& self, const std::vector<std::string>& resources);
     
     /**
      * Default constructor
@@ -102,18 +105,19 @@ public:
     /**
      * Sets the agent this DLM works with.
      */
-    void setSelf(const Agent& self);
+    void setSelf(const fipa::acl::AgentID& self);
     
     /**
      * Gets the agent this DLM works with.
      */
-    const Agent& getSelf() const;
+    const fipa::acl::AgentID& getSelf() const;
 
     /**
      * Gets the next outgoing message, and removes it from the internal queue. Used by the higher instance that uses this library.
      * Must only be called if hasOutgoingMessages == true.
      */
     fipa::acl::ACLMessage popNextOutgoingMessage();
+
     /**
      * True, if there are outgoing messages than can be obtained with popNextOutgoingMessage.
      */
@@ -128,11 +132,13 @@ public:
     /**
      * Tries to lock a resource. Subsequently, isLocked() must be called to check the status.
      */
-    virtual void lock(const std::string& resource, const std::list<Agent>& agents);
+    virtual void lock(const std::string& resource, const std::list<fipa::acl::AgentID>& agents);
+
     /**
      * Unlocks a resource, that should have been locked before.
      */
     virtual void unlock(const std::string& resource);
+
     /**
      * Gets the lock state for a resource.
      */
@@ -145,14 +151,14 @@ public:
     virtual void onIncomingMessage(const fipa::acl::ACLMessage& message);
     
     /**
-     * This message is called by the DLM, if an agent does not respond PROBE messages with SUCCESS after a certain timeout.
+     * This message is called by the DLM, if an agent does not respond REQUEST messages with CONFIRM after a certain timeout.
      * Subclasses can and should react according to the algorithm.
      */
-    virtual void agentFailed(const std::string& agentName);
+    virtual void agentFailed(const fipa::acl::AgentID& agent);
 
 protected:
     /**
-     * A structure for organizing threads that send PROBE messages.
+     * A structure for organizing sending probe messages 
      */
     struct ProbeRunner
     {
@@ -176,21 +182,25 @@ protected:
     /**
      * Protected constructor with the agent to manage and a list of physically owned resources.
      */
-    DLM(const Agent& self, const std::vector<std::string>& resources);
+    DLM(const fipa::acl::AgentID& self, const std::vector<std::string>& resources);
     
     // The agent represented by this DLM
-    Agent mSelf;
+    fipa::acl::AgentID mSelf;
     // List of outgoing messages.
     std::list<fipa::acl::ACLMessage> mOutgoingMessages;
     // Current number for conversation IDs
     int mConversationIDnum;
-    
+   
+    typedef std::map<std::string, fipa::acl::AgentID> ResourceAgentMap;
     // The physically owned resources of all agents known. Maps resource->agent
-    std::map<std::string, std::string> mOwnedResources;
+    ResourceAgentMap mOwnedResources;
     // The (logical) lock holders of the owned resources. Maps resource->agent
-    std::map<std::string, std::string> mLockHolders;
-    // All probe runners. agentName -> ProbeRunner
-    std::map<std::string, ProbeRunner> mProbeRunners;
+    ResourceAgentMap mLockHolders;
+
+    // All probe runners. agent -> ProbeRunner
+    typedef std::map<fipa::acl::AgentID, ProbeRunner> ProbeRunnerMap;
+    ProbeRunnerMap mProbeRunners;
+
     
     /**
      * This method MUST be called by implementing subclasses, when the lock is requested.
@@ -198,31 +208,46 @@ protected:
      * Ideally, this SHOULD be called BEFORE lock requesting messages are even pushed back
      * in mOutgoingMessages.
      */
-    void lockRequested(const std::string& resource, const std::list<Agent>& agents);
+    void lockRequested(const std::string& resource, const std::list<fipa::acl::AgentID>& agents);
+
     /**
      * This method MUST be called by implementing subclasses, when the lock is obtained.
      * Like this we can keep track of logical owners of our own resources.
      */
     void lockObtained(const std::string& resource);
+
     /**
      * This method MUST be called by implementing subclasses, when the lock is released.
      * Like this we can keep track of logical owners of our own resources.
      */
     void lockReleased(const std::string& resource);
+
     /**
      * Tells the DLM to send PROBE messages to the agent in intervals, and call agentFailed, if it does not respond.
      */
-    void startRequestingProbes(const std::string& agentName, const std::string resourceName);
+    void startRequestingProbes(const fipa::acl::AgentID& agent, const std::string resourceName);
+
     /**
      * Tells the DLM to stop sending PROBE messages to the agent.
      */
-    void stopRequestingProbes(const std::string& agentName, const std::string resourceName);
+    void stopRequestingProbes(const fipa::acl::AgentID& agent, const std::string resourceName);
+
+    /**
+     * Check if the owner of the given resource is known
+     */
+    bool hasKnownOwner(const std::string& resource) const;
+
+    /**
+     * Prepares an message with this agent as sender -- by default creates an
+     * new conversation id
+     */
+    fipa::acl::ACLMessage prepareMessage(fipa::acl::ACLMessage::Performative performative, const std::string& protocol, const std::string& content = "");
     
 private:
     /**
      * Send a probe message to the agent
      */
-    void sendProbe(const std::string& agentName);
+    void sendProbe(const fipa::acl::AgentID& agentName);
     
     /**
      * Handles incoming DLm messages

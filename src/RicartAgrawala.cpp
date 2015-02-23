@@ -4,24 +4,27 @@
 #include <boost/algorithm/string.hpp>
 #include <string>
 #include <stdexcept>
+#include <base/Logging.hpp>
+
+using namespace fipa::acl;
 
 namespace fipa {
 namespace distributed_locking {
 
 // Set the protocol
 const protocol::Protocol RicartAgrawala::protocol = protocol::RICART_AGRAWALA;
-    
-RicartAgrawala::RicartAgrawala() 
+
+RicartAgrawala::RicartAgrawala()
     : DLM()
 {
 }
 
-RicartAgrawala::RicartAgrawala(const fipa::Agent& self, const std::vector< std::string >& resources) 
+RicartAgrawala::RicartAgrawala(const fipa::acl::AgentID& self, const std::vector< std::string >& resources)
     : DLM(self, resources)
 {
 }
 
-void RicartAgrawala::lock(const std::string& resource, const std::list<Agent>& agents)
+void RicartAgrawala::lock(const std::string& resource, const std::list<AgentID>& agents)
 {
     lock_state::LockState state = getLockState(resource);
     // Only act we are not holding this resource and not already interested in it
@@ -34,43 +37,36 @@ void RicartAgrawala::lock(const std::string& resource, const std::list<Agent>& a
         }
         return;
     }
-    
+
     // Let the base class know we're requesting the lock BEFORE we actually do that
     lockRequested(resource, agents);
 
     using namespace fipa::acl;
     // Send a message to everyone, requesting the lock
-    ACLMessage message;
-    // A simple request
-    message.setPerformative(ACLMessage::REQUEST);
-
+    ACLMessage message = prepareMessage(ACLMessage::REQUEST, protocolTxt[protocol]);
     // Our request messages are in the format "TIME\nRESOURCE_IDENTIFIER"
     base::Time time = base::Time::now();
     message.setContent(time.toString() + "\n" + resource);
     // Add sender and receivers
-    message.setSender(AgentID(mSelf.identifier));
-    for(std::list<Agent>::const_iterator it = agents.begin(); it != agents.end(); it++)
+    for(std::list<AgentID>::const_iterator it = agents.begin(); it != agents.end(); it++)
     {
-        message.addReceiver(AgentID(it->identifier));
+        message.addReceiver(*it);
     }
-    // Set and increase conversation ID
-    message.setConversationID(mSelf.identifier + "_" + boost::lexical_cast<std::string>(mConversationIDnum++));
-    message.setProtocol(protocolTxt[protocol]);
 
     // Add to outgoing messages
     mOutgoingMessages.push_back(message);
-    
+
     // Change internal state
     mLockStates[resource].mCommunicationPartners = agents;
     // Sort agents
     mLockStates[resource].mCommunicationPartners.sort();
-    
+
     mLockStates[resource].mResponded.clear();
     mLockStates[resource].mState = lock_state::INTERESTED;
     mLockStates[resource].mInterestTime = time;
     mLockStates[resource].mConversationID = message.getConversationID();
-
     // Now a response from each agent must be received before we can enter the critical section
+    LOG_DEBUG_S << "'" << mSelf.getName() << "' mark INTERESTED for resource '" << resource << "'";
 }
 
 void RicartAgrawala::unlock(const std::string& resource)
@@ -80,9 +76,12 @@ void RicartAgrawala::unlock(const std::string& resource)
     {
         // Change internal state
         mLockStates[resource].mState = lock_state::NOT_INTERESTED;
+        // Now a response from each agent must be received before we can enter the critical section
+        LOG_DEBUG_S << "'" << mSelf.getName() << "' mark NOT_INTERESTED for resource '" << resource << "'";
+
         // Send all deferred messages for that resource
         sendAllDeferredMessages(resource);
-        
+
         // Let the base class know we released the lock
         lockReleased(resource);
     }
@@ -90,9 +89,10 @@ void RicartAgrawala::unlock(const std::string& resource)
 
 lock_state::LockState RicartAgrawala::getLockState(const std::string& resource) const
 {
-    if(mLockStates.count(resource) != 0)
+    std::map<std::string, ResourceLockState>::const_iterator cit = mLockStates.find(resource);
+    if(cit != mLockStates.end())
     {
-        return mLockStates.at(resource).mState;
+        return cit->second.mState;
     }
     else
     {
@@ -105,7 +105,7 @@ void RicartAgrawala::onIncomingMessage(const fipa::acl::ACLMessage& message)
 {
     // Call base method as required
     DLM::onIncomingMessage(message);
-    
+
     // Check if it's the right protocol
     if(message.getProtocol() != protocolTxt[protocol])
     {
@@ -118,7 +118,7 @@ void RicartAgrawala::onIncomingMessage(const fipa::acl::ACLMessage& message)
     for(unsigned int i = 0; i < receivers.size(); i++)
     {
         AgentID agentID = receivers[i];
-        if(agentID.getName() == mSelf.identifier)
+        if(agentID.getName() == mSelf.getName())
         {
             foundUs = true;
             break;
@@ -128,42 +128,39 @@ void RicartAgrawala::onIncomingMessage(const fipa::acl::ACLMessage& message)
     {
         return;
     }
-    
+
     // Check message type
-    if(ACLMessage::performativeFromString(message.getPerformative()) == ACLMessage::REQUEST)
+    switch(message.getPerformativeAsEnum())
     {
-        handleIncomingRequest(message);
+        case ACLMessage::REQUEST:
+            handleIncomingRequest(message);
+            break;
+        case ACLMessage::INFORM:
+            handleIncomingResponse(message);
+            break;
+        case ACLMessage::FAILURE:
+            handleIncomingFailure(message);
+            break;
+        default:
+            // We ignore other performatives, as they are not part of our protocol.
+            break;
     }
-    else if(ACLMessage::performativeFromString(message.getPerformative()) == ACLMessage::INFORM)
-    {
-        handleIncomingResponse(message);
-    }
-    else if(ACLMessage::performativeFromString(message.getPerformative()) == ACLMessage::FAILURE)
-    {
-        handleIncomingFailure(message);
-    }
-    // We ignore other performatives, as they are not part of our protocol.
 }
 
 void RicartAgrawala::handleIncomingRequest(const fipa::acl::ACLMessage& message)
 {
+    LOG_DEBUG_S << "Handling incoming request";
     base::Time otherTime;
     std::string resource;
     extractInformation(message, otherTime, resource);
 
     // Create a response
-    fipa::acl::ACLMessage response;
-    // An inform we're not interested in or done using the resource
-    response.setPerformative(fipa::acl::ACLMessage::INFORM);
-
-    // Add sender and receiver
-    response.setSender(fipa::acl::AgentID(mSelf.identifier));
+    fipa::acl::ACLMessage response = prepareMessage(ACLMessage::INFORM, protocolTxt[protocol]);
     response.addReceiver(message.getSender());
 
     // Keep the conversation ID
     response.setConversationID(message.getConversationID());
-    response.setProtocol(protocolTxt[protocol]);
-    
+
     // We send this message now, if we don't hold the resource and are not interested or have been slower. Otherwise we defer it.
     lock_state::LockState state = getLockState(resource);
     if(state == lock_state::NOT_INTERESTED || (state == lock_state::INTERESTED && otherTime < mLockStates[resource].mInterestTime))
@@ -190,6 +187,7 @@ void RicartAgrawala::handleIncomingRequest(const fipa::acl::ACLMessage& message)
 
 void RicartAgrawala::handleIncomingResponse(const fipa::acl::ACLMessage& message)
 {
+    LOG_DEBUG_S << "Handling incoming response";
     // If we get a response, that likely means, we are interested in a resource
     base::Time otherTime;
     std::string resource;
@@ -200,32 +198,33 @@ void RicartAgrawala::handleIncomingResponse(const fipa::acl::ACLMessage& message
     {
         return;
     }
-    
+
     // Save that the sender responded
-    addRespondedAgent(message.getSender().getName(), resource);
+    addRespondedAgent(message.getSender(), resource);
     // Sort agents who responded
     mLockStates[resource].mResponded.sort();
-    
+
     // We have got the lock, if all agents responded
     if(mLockStates[resource].mCommunicationPartners == mLockStates[resource].mResponded)
     {
         mLockStates[resource].mState = lock_state::LOCKED;
-        
+
         // Let the base class know we obtained the lock
         lockObtained(resource);
     }
 }
 
-void RicartAgrawala::addRespondedAgent(std::string agentName, std::string resource)
+void RicartAgrawala::addRespondedAgent(const fipa::acl::AgentID& agent, std::string resource)
 {
     // XXX if agent becomes more complex, we need to copy it from mCommunicationPartners,
     // instead of creating a new one
-    mLockStates[resource].mResponded.push_back(Agent (agentName));
+    mLockStates[resource].mResponded.push_back(agent);
 }
 
 
 void RicartAgrawala::handleIncomingFailure(const fipa::acl::ACLMessage& message)
 {
+    LOG_DEBUG_S << "Handling incoming failure";
     // First determine the affected resource from the conversation id.
     std::string conversationID = message.getConversationID();
     std::string resource;
@@ -237,20 +236,22 @@ void RicartAgrawala::handleIncomingFailure(const fipa::acl::ACLMessage& message)
             break;
         }
     }
+
     // Abort if we didn't find a corresponding resource, or are not interested in the resource currently
     if(resource == "" || mLockStates[resource].mState != lock_state::INTERESTED)
     {
         // If a response message cannot be delivered, we can ignore that
+        LOG_DEBUG_S << "Ignore error since '" << mSelf.getName() << "' is not interested in resource: '" << resource << "'";
         return;
     }
-    
+
     using namespace fipa::acl;
     // Get intended receivers
     std::string innerEncodedMsg = message.getContent();
     ACLMessage errorMsg;
     MessageParser::parseData(innerEncodedMsg, errorMsg, representation::STRING_REP);
     AgentIDList deliveryFailedForAgents = errorMsg.getAllReceivers();
-    
+
     for(AgentIDList::const_iterator it = deliveryFailedForAgents.begin(); it != deliveryFailedForAgents.end(); it++)
     {
         // Now we must handle the failure appropriately
@@ -258,45 +259,62 @@ void RicartAgrawala::handleIncomingFailure(const fipa::acl::ACLMessage& message)
     }
 }
 
-void RicartAgrawala::handleIncomingFailure(const std::string& resource, std::string intendedReceiver)
+void RicartAgrawala::handleIncomingFailure(const std::string& resource, const fipa::acl::AgentID& intendedReceiver)
 {
     // If the physical owner of the resource failed, the ressource probably cannot be obtained any more.
     if(mOwnedResources[resource] == intendedReceiver)
     {
         // Mark resource as unreachable.
         mLockStates[resource].mState = lock_state::UNREACHABLE;
+        LOG_DEBUG_S << "'" << mSelf.getName()  << "' mark resource: '" << resource << "' unreachable";
         // Send all deferred messages for that resource
         sendAllDeferredMessages(resource);
     }
     else
     {
         // The agent was not important, we just have to remove it from the list of communication partners, as we won't get a response from it
-        mLockStates[resource].mCommunicationPartners.remove(Agent (intendedReceiver));
-        
+        mLockStates[resource].mCommunicationPartners.remove(intendedReceiver);
+
+        LOG_DEBUG_S << "'" << mSelf.getName()  << "' can ignore failed agent '" << intendedReceiver.getName()
+            << "' since we never received a response regarding resource: '" << resource << "'";
+
         // We have got the lock, if all agents responded
         if(mLockStates[resource].mCommunicationPartners == mLockStates[resource].mResponded)
         {
             mLockStates[resource].mState = lock_state::LOCKED;
-            
+
             // Let the base class know we obtained the lock
             lockObtained(resource);
         }
     }
 }
 
-void RicartAgrawala::agentFailed(const std::string& agentName)
+void RicartAgrawala::agentFailed(const fipa::acl::AgentID& agent)
 {
+
+    LOG_DEBUG_S << "'" << mSelf.getName() << "' detected failed agent: '" << agent.getName() << "'";
+    std::map<std::string, ResourceLockState>::iterator it = mLockStates.begin();
     // Determine all resources, where we await an answer from that agent
-    for(std::map<std::string, ResourceLockState>::const_iterator it = mLockStates.begin(); it != mLockStates.end(); it++)
+    for(; it != mLockStates.end(); ++it)
     {
+        ResourceLockState lockState = it->second;
         // If we're interested and await an answer from that agent...
-        if(it->second.mState == lock_state::INTERESTED &&
-            std::find(it->second.mCommunicationPartners.begin(), it->second.mCommunicationPartners.end(), Agent(agentName)) != it->second.mCommunicationPartners.end() &&
-            std::find(it->second.mResponded.begin(), it->second.mResponded.end(), Agent(agentName)) == it->second.mResponded.end())
+        if(lockState.mState == lock_state::INTERESTED || lockState.mState == lock_state::LOCKED)
         {
-            handleIncomingFailure(it->first, agentName);
+            // If we're not interested or the agent already responded, we can ignore that
+            LOG_DEBUG_S << "'" << mSelf.getName() << "' detect failed agent: " << agent.getName() << " which this agent holds a resource of or is interested in";
+
+            if(std::find(lockState.mCommunicationPartners.begin(), lockState.mCommunicationPartners.end(), agent) != lockState.mCommunicationPartners.end())
+            {
+                LOG_DEBUG_S << "'" << mSelf.getName() << "' handle failed agent: '" << agent.getName() << "'";
+                handleIncomingFailure(it->first, agent);
+            } else {
+                // If we're not interested or the agent already responded, we can ignore that
+                LOG_DEBUG_S << "Agent failed: " << agent.getName() << " but this agent '" << mSelf.getName() << "' is not communcation partner without reponse";
+            }
+        } else {
+                LOG_DEBUG_S << "'" << mSelf.getName() << "' is not interested in resource: '" << it->first << "' lock state is: " << lockState.mState;
         }
-        // If we're not interested or the agent already responded, we can ignore that
     }
 }
 
@@ -305,7 +323,7 @@ void RicartAgrawala::extractInformation(const fipa::acl::ACLMessage& message, ba
     // Split by newline
     std::vector<std::string> strs;
     std::string s = message.getContent();
-    boost::split(strs, s, boost::is_any_of("\n")); // XXX why do I need to put it in an extra string?
+    boost::split(strs, s, boost::is_any_of("\n"));
 
     if(strs.size() != 2)
     {
@@ -314,6 +332,8 @@ void RicartAgrawala::extractInformation(const fipa::acl::ACLMessage& message, ba
     // Save the extracted information in the references
     time = base::Time::fromString(strs[0]);
     resource = strs[1];
+
+    LOG_DEBUG_S << "Extracted time: " << time.toString() << " and resource: " << resource;
 }
 
 void RicartAgrawala::sendAllDeferredMessages(const std::string& resource)

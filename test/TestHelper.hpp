@@ -6,6 +6,6 @@
 /**
  * Forwards all messages that currently await. FIXME to a new file
  */
-void forwardAllMessages(std::list<fipa::distributed_locking::DLM*> dlms);
+void forwardAllMessages(std::list<fipa::distributed_locking::DLM::Ptr> dlms);
 
 #endif // DISTRIBUTED_LOCKING_TEST_HELPER_HPP

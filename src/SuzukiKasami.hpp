@@ -1,9 +1,10 @@
 #ifndef DISTRIBUTED_LOCKING_SUZUKI_KASAMI_HPP
 #define DISTRIBUTED_LOCKING_SUZUKI_KASAMI_HPP
 
-#include "DLM.hpp"
-#include "Agent.hpp"
+#include <queue>
 #include <fipa_acl/fipa_acl.h>
+#include <distributed_locking/DLM.hpp>
+#include <distributed_locking/AgentIDSerialization.hpp>
 
 namespace fipa {
 namespace distributed_locking {
@@ -13,6 +14,27 @@ namespace distributed_locking {
 class SuzukiKasami : public DLM
 {
 public:
+    /**
+     * The token used in this protocol.
+     */
+    struct Token
+    {
+        // LastRequestNumber for each of the agents
+        std::map<fipa::acl::AgentID, int> mLastRequestNumber;
+         // Queue of agents waiting for the token
+        std::deque<fipa::acl::AgentID> mQueue;
+
+        /**
+         * Boost serialization method
+         */
+        template<class Archive>
+        void serialize(Archive& ar, unsigned int version)
+        {
+            ar & mLastRequestNumber;
+            ar & mQueue;
+        }
+    };
+
     /**
      * The implemented protocol
      */
@@ -25,12 +47,12 @@ public:
     /**
      * Constructor
      */
-    SuzukiKasami(const Agent& self, const std::vector<std::string>& resources);
+    SuzukiKasami(const fipa::acl::AgentID& self, const std::vector<std::string>& resources);
 
     /**
      * Tries to lock a resource. Subsequently, isLocked() must be called to check the status.
      */
-    virtual void lock(const std::string& resource, const std::list<Agent>& agents);
+    virtual void lock(const std::string& resource, const std::list<fipa::acl::AgentID>& agents);
     /**
      * Unlocks a resource, that must have been locked before
      */
@@ -45,32 +67,12 @@ public:
      */
     virtual void onIncomingMessage(const fipa::acl::ACLMessage& message);
     /**
-     * This message is called by the DLM, if an agent does not respond PROBE messages with SUCCESS after a certain timeout.
+     * This message is called by the DLM, if an agent does not respond a REQUEST messages with CONFIRM after a certain timeout.
      * Subclasses can and should react according to the algorithm.
      */
-    virtual void agentFailed(const std::string& agentName);
+    virtual void agentFailed(const fipa::acl::AgentID& agentName);
 
 protected:
-    /**
-     * A token used in this protocol.
-     */
-    struct Token
-    {
-        // LastRequestNumber for each of the agents
-        std::map<std::string, int> mLastRequestNumber;
-         // Queue of agents waiting for the token
-        std::deque<std::string> mQueue;
-        
-        /**
-         * Boost serialization method
-         */
-        template<class Archive>
-        void serialize(Archive& ar, unsigned int version)
-        {
-            ar & mLastRequestNumber;
-            ar & mQueue;
-        }
-    };
     
     /**
      * Nested class representing an inner state for a certain resource.
@@ -83,9 +85,9 @@ protected:
         // Whether the token is currently held
         bool mHoldingToken;
         // Everyone to inform when locking
-        std::list<Agent> mCommunicationPartners;
+        std::list<fipa::acl::AgentID> mCommunicationPartners;
         // Last known request number for each of the agents
-        std::map<std::string, int> mRequestNumber;
+        std::map<fipa::acl::AgentID, int> mRequestNumber;
         // The lock state, initially not interested (=0)
         lock_state::LockState mState;
         // The conversationID, which is relevant if we're interested and get a failure message back
@@ -110,7 +112,7 @@ protected:
     /**
      * Actually handles an incoming failure.
      */
-    void handleIncomingFailure(const std::string& resource, std::string intendedReceiver);
+    void handleIncomingFailure(const std::string& resource, const fipa::acl::AgentID& intendedReceiver);
     /**
      * Extracts the information from the content and saves it in the passed references
      */
@@ -130,7 +132,7 @@ protected:
     /**
      * Will always return false, as the original SuzukiKasami algorithm cannot keep track of the token owners.
      */
-    virtual bool isTokenHolder(const std::string& resource, const std::string& agentName);
+    virtual bool isTokenHolder(const std::string& resource, const fipa::acl::AgentID& agent);
     
 };
 } // namespace distributed_locking

@@ -1,10 +1,8 @@
 #ifndef DISTRIBUTED_LOCKING_SUZUKI_KASAMI_EXTENDED_HPP
 #define DISTRIBUTED_LOCKING_SUZUKI_KASAMI_EXTENDED_HPP
 
-#include "SuzukiKasami.hpp"
-#include "Agent.hpp"
+#include <distributed_locking/SuzukiKasami.hpp>
 #include <fipa_acl/fipa_acl.h>
-
 
 namespace fipa {
 namespace distributed_locking {
@@ -28,7 +26,7 @@ public:
     /**
      * Constructor
      */
-    SuzukiKasamiExtended(const Agent& self, const std::vector<std::string>& resources);
+    SuzukiKasamiExtended(const fipa::acl::AgentID& self, const std::vector<std::string>& resources);
     
     /**
      * Forwards the token to the next person in the queue, via the resource owner.
@@ -38,7 +36,7 @@ public:
      * Return whether the given agent owns (owned last) the token for the given resource. This algorithm
      * extension keeps track of that.
      */
-    virtual bool isTokenHolder(const std::string& resource, const std::string& agentName);
+    virtual bool isTokenHolder(const std::string& resource, const fipa::acl::AgentID& agentName);
     /**
      * Send the token to the receiver and sends PROBEs if neccesary.
      */
@@ -50,12 +48,12 @@ public:
     /**
      * Tries to lock a resource. Subsequently, isLocked() must be called to check the status.
      */
-    virtual void lock(const std::string& resource, const std::list<Agent>& agents);
+    virtual void lock(const std::string& resource, const std::list<fipa::acl::AgentID>& agents);
     
 private:
     // The (logical) token holders of the owned resources. Maps resource->agent.
-    // Will be equivalent to mLckHolders MOST OF THE TIME.
-    std::map<std::string, std::string> mTokenHolders;
+    // Will be equivalent to mLockHolders MOST OF THE TIME.
+    ResourceAgentMap mTokenHolders;
 
 };
 } // namespace distributed_locking
