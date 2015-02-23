@@ -13,12 +13,14 @@ using namespace fipa;
 using namespace fipa::distributed_locking;
 using namespace fipa::acl;
 
+BOOST_AUTO_TEST_SUITE(ricart_agrawala)
+
 /**
  * Test correct reactions if an agent fails, that is important.
  */
-BOOST_AUTO_TEST_CASE(ricart_agrawala_failing_agent_important)
+BOOST_AUTO_TEST_CASE(failing_of_important_agent)
 {
-    std::cout << "ricart_agrawala_failing_agent_important" << std::endl;
+    BOOST_TEST_MESSAGE("ricart_agrawala/failing_of_important_agent");
 
     // Create 2 Agents
     AgentID a1 ("agent1"), a2 ("agent2");
@@ -74,9 +76,9 @@ BOOST_AUTO_TEST_CASE(ricart_agrawala_failing_agent_important)
 /**
  * Test correct reactions if an agent fails, that is not important.
  */
-BOOST_AUTO_TEST_CASE(ricart_agrawala_failing_agent_not_important)
+BOOST_AUTO_TEST_CASE(failing_agent_not_important)
 {
-    std::cout << "ricart_agrawala_failing_agent_not_important" << std::endl;
+    BOOST_TEST_MESSAGE("ricart_agrawala/failing_agent_not_important");
 
     // Create 2 Agents
     AgentID a1 ("agent1"), a2 ("agent2");
@@ -123,9 +125,10 @@ BOOST_AUTO_TEST_CASE(ricart_agrawala_failing_agent_not_important)
 /**
  * Test taken from the ruby script.
  */
-BOOST_AUTO_TEST_CASE(ricart_agrawala_test_from_ruby_script)
+BOOST_AUTO_TEST_CASE(test_from_ruby_script)
 {
-    std::cout << "ricart_agrawala_test_from_ruby_script" << std::endl;
+    BOOST_TEST_MESSAGE("ricart_agrawala/test_from_ruby_script");
+
     // Create 3 Agents
     AgentID a1 ("agent1"), a2 ("agent2"), a3 ("agent3");
     // Define critical resource
@@ -189,9 +192,10 @@ BOOST_AUTO_TEST_CASE(ricart_agrawala_test_from_ruby_script)
 /**
  * Simple test with 3 agents, where a1 requests, obtains, and releases the lock for a resource
  */
-BOOST_AUTO_TEST_CASE(ricart_agrawala_basic_hold_and_release)
+BOOST_AUTO_TEST_CASE(basic_hold_and_release)
 {
-    std::cout << "ricart_agrawala_basic_hold_and_release" << std::endl;
+    BOOST_TEST_MESSAGE("ricart_agrawala/basic_hold_and_release");
+
     // Create 3 Agents
     AgentID a1 ("agent1"), a2 ("agent2"), a3 ("agent3");
     // Define critical resource
@@ -227,9 +231,9 @@ BOOST_AUTO_TEST_CASE(ricart_agrawala_basic_hold_and_release)
  * Two agents want the same resource. First, a2 wants it _later_ than a1, then a1 wants it while
  * a2 holds the lock.
  */
-BOOST_AUTO_TEST_CASE(ricart_agrawala_two_agents_conflict)
+BOOST_AUTO_TEST_CASE(two_agents_conflict)
 {
-    std::cout << "ricart_agrawala_two_agents_conflict" << std::endl;
+    BOOST_TEST_MESSAGE("ricart_agrawala/two_agents_conflict");
     // Create 2 Agents
     AgentID a1 ("agent1"), a2 ("agent2");
     // Define critical resource
@@ -282,9 +286,9 @@ BOOST_AUTO_TEST_CASE(ricart_agrawala_two_agents_conflict)
 /**
  * Two agents (one simulated) want one resource at the same time. The agent should revoke his interest.
  */
-BOOST_AUTO_TEST_CASE(ricart_agrawala_same_time_conflict)
+BOOST_AUTO_TEST_CASE(same_time_conflict)
 {
-    std::cout << "ricart_agrawala_same_time_conflict" << std::endl;
+    BOOST_TEST_MESSAGE("ricart_agrawala/same_time_conflict");
     // Create 2 Agents, a2 is simulated
     AgentID a1 ("agent1"), a2 ("agent2");
     // Define critical resource
@@ -319,3 +323,5 @@ BOOST_AUTO_TEST_CASE(ricart_agrawala_same_time_conflict)
     // Now he shouldn't be interested any more
     BOOST_CHECK(dlm1->getLockState(rsc1) == lock_state::NOT_INTERESTED);
 }
+
+BOOST_AUTO_TEST_SUITE_END()

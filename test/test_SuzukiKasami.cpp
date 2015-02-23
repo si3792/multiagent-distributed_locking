@@ -13,12 +13,15 @@ using namespace fipa;
 using namespace fipa::distributed_locking;
 using namespace fipa::acl;
 
+BOOST_AUTO_TEST_SUITE(suzuki_kasami)
+
 /**
  * Test taken from the ruby script.
  */
-BOOST_AUTO_TEST_CASE(suzuki_kasami_test_from_ruby_script)
+BOOST_AUTO_TEST_CASE(test_from_ruby_script)
 {
-    std::cout << "suzuki_kasami_test_from_ruby_script" << std::endl;
+    BOOST_TEST_MESSAGE("suzuki_kasami/test_from_ruby_script");
+
     // Create 3 Agents
     AgentID a1 ("agent1"), a2 ("agent2"), a3 ("agent3");
     // Define critical resource
@@ -131,9 +134,10 @@ BOOST_AUTO_TEST_CASE(suzuki_kasami_basic_hold_and_release)
  * Two agents want the same resource. A2 wants it while
  * a1 holds the lock.
  */
-BOOST_AUTO_TEST_CASE(suzuki_kasami_two_agents_conflict)
+BOOST_AUTO_TEST_CASE(two_agents_conflict)
 {
-    std::cout << "suzuki_kasami_two_agents_conflict" << std::endl;
+    BOOST_TEST_MESSAGE("suzuki_kasami/two_agents_conflict");
+
     // Create 2 Agents
     AgentID a1 ("agent1"), a2 ("agent2");
     // Define critical resource
@@ -169,3 +173,5 @@ BOOST_AUTO_TEST_CASE(suzuki_kasami_two_agents_conflict)
     BOOST_CHECK(dlm2->getLockState(rsc1) == lock_state::NOT_INTERESTED);
     forwardAllMessages(boost::assign::list_of(dlm1)(dlm2));
 }
+
+BOOST_AUTO_TEST_SUITE_END()
