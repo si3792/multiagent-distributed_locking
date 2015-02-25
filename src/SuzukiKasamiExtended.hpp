@@ -15,15 +15,6 @@ class SuzukiKasamiExtended : public SuzukiKasami
 {
 public:
     /**
-     * The implemented protocol
-     */
-    static const protocol::Protocol protocol;
-    
-    /**
-     * Default constructor
-     */
-    SuzukiKasamiExtended();
-    /**
      * Constructor
      */
     SuzukiKasamiExtended(const fipa::acl::AgentID& self, const std::vector<std::string>& resources);

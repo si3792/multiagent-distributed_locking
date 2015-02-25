@@ -8,17 +8,10 @@ using namespace fipa::acl;
 namespace fipa {
 namespace distributed_locking {
 
-// Set the protocol
-const protocol::Protocol SuzukiKasamiExtended::protocol = protocol::SUZUKI_KASAMI_EXTENDED;
-
-SuzukiKasamiExtended::SuzukiKasamiExtended()
-    : SuzukiKasami()
-{
-}
-
 SuzukiKasamiExtended::SuzukiKasamiExtended(const fipa::acl::AgentID& self, const std::vector< std::string >& resources)
     : SuzukiKasami(self, resources)
 {
+    setProtocol(protocol::SUZUKI_KASAMI_EXTENDED);
 }
 
 void SuzukiKasamiExtended::forwardToken(const std::string& resource)

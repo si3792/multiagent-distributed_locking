@@ -15,11 +15,6 @@ class RicartAgrawalaExtended : public RicartAgrawala
 {
 public:
     /**
-     * The implemented protocol
-     */
-    static const protocol::Protocol protocol;
-    
-    /**
      * Default constructor
      */
     RicartAgrawalaExtended();

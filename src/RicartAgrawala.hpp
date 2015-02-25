@@ -15,15 +15,6 @@ class RicartAgrawala : public DLM
 {
 public:
     /**
-     * The implemented protocol
-     */
-    static const protocol::Protocol protocol;
-    
-    /**
-     * Default constructor
-     */
-    RicartAgrawala();
-    /**
      * Constructor
      */
     RicartAgrawala(const fipa::acl::AgentID& self, const std::vector<std::string>& resources);
@@ -44,7 +35,7 @@ public:
      * This message is triggered by the higher instance that uses this library, if a message is received. Sequential calls must be guaranteed.
      * Subclasses MUST call the base implementation, as there are also direct DLM messages not belonging to any underlying protocol.
      */
-    virtual void onIncomingMessage(const fipa::acl::ACLMessage& message);
+    virtual bool onIncomingMessage(const fipa::acl::ACLMessage& message);
     /**
      * This message is called by the DLM, if an agent does not respond a REQUEST messages with CONFIRM after a certain timeout.
      * Subclasses can and should react according to the algorithm.

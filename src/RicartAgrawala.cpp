@@ -11,16 +11,8 @@ using namespace fipa::acl;
 namespace fipa {
 namespace distributed_locking {
 
-// Set the protocol
-const protocol::Protocol RicartAgrawala::protocol = protocol::RICART_AGRAWALA;
-
-RicartAgrawala::RicartAgrawala()
-    : DLM()
-{
-}
-
 RicartAgrawala::RicartAgrawala(const fipa::acl::AgentID& self, const std::vector< std::string >& resources)
-    : DLM(self, resources)
+    : DLM(protocol::RICART_AGRAWALA, self, resources)
 {
 }
 
@@ -43,7 +35,7 @@ void RicartAgrawala::lock(const std::string& resource, const std::list<AgentID>&
 
     using namespace fipa::acl;
     // Send a message to everyone, requesting the lock
-    ACLMessage message = prepareMessage(ACLMessage::REQUEST, protocolTxt[protocol]);
+    ACLMessage message = prepareMessage(ACLMessage::REQUEST, getProtocolName());
     // Our request messages are in the format "TIME\nRESOURCE_IDENTIFIER"
     base::Time time = base::Time::now();
     message.setContent(time.toString() + "\n" + resource);
@@ -101,49 +93,36 @@ lock_state::LockState RicartAgrawala::getLockState(const std::string& resource) 
     }
 }
 
-void RicartAgrawala::onIncomingMessage(const fipa::acl::ACLMessage& message)
+bool RicartAgrawala::onIncomingMessage(const fipa::acl::ACLMessage& message)
 {
     // Call base method as required
-    DLM::onIncomingMessage(message);
+    if( DLM::onIncomingMessage(message) )
+    {
+        return true;
+    }
 
     // Check if it's the right protocol
-    if(message.getProtocol() != protocolTxt[protocol])
+    if(message.getProtocol() != getProtocolName())
     {
-        return;
-    }
-    using namespace fipa::acl;
-    // Abort if we're not a receiver
-    AgentIDList receivers = message.getAllReceivers();
-    bool foundUs = false;
-    for(unsigned int i = 0; i < receivers.size(); i++)
-    {
-        AgentID agentID = receivers[i];
-        if(agentID.getName() == mSelf.getName())
-        {
-            foundUs = true;
-            break;
-        }
-    }
-    if(!foundUs)
-    {
-        return;
+        return false;
     }
 
+    using namespace fipa::acl;
     // Check message type
     switch(message.getPerformativeAsEnum())
     {
         case ACLMessage::REQUEST:
             handleIncomingRequest(message);
-            break;
+            return true;
         case ACLMessage::INFORM:
             handleIncomingResponse(message);
-            break;
+            return true;
         case ACLMessage::FAILURE:
             handleIncomingFailure(message);
-            break;
+            return true;
         default:
             // We ignore other performatives, as they are not part of our protocol.
-            break;
+            return false;
     }
 }
 
@@ -155,7 +134,7 @@ void RicartAgrawala::handleIncomingRequest(const fipa::acl::ACLMessage& message)
     extractInformation(message, otherTime, resource);
 
     // Create a response
-    fipa::acl::ACLMessage response = prepareMessage(ACLMessage::INFORM, protocolTxt[protocol]);
+    fipa::acl::ACLMessage response = prepareMessage(ACLMessage::INFORM, getProtocolName());
     response.addReceiver(message.getSender());
 
     // Keep the conversation ID
@@ -327,7 +306,7 @@ void RicartAgrawala::extractInformation(const fipa::acl::ACLMessage& message, ba
 
     if(strs.size() != 2)
     {
-        throw std::runtime_error("RicartAgrawala::extractInformation ACLMessage content malformed");
+        throw std::runtime_error("RicartAgrawala::extractInformation ACLMessage content malformed: " + s);
     }
     // Save the extracted information in the references
     time = base::Time::fromString(strs[0]);

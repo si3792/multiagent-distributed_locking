@@ -53,6 +53,7 @@ BOOST_AUTO_TEST_CASE(failing_of_important_agent)
         innerFailureMsg.setSender(a2);
         innerFailureMsg.setAllReceivers(msgOut.getAllReceivers());
         innerFailureMsg.setContent("description: message delivery failed");
+
         ACLMessage outerFailureMsg;
         outerFailureMsg.setPerformative(ACLMessage::FAILURE);
         outerFailureMsg.setSender(AgentID("mts"));

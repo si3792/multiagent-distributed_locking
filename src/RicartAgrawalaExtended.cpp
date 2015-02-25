@@ -5,17 +5,10 @@ using namespace fipa::acl;
 namespace fipa {
 namespace distributed_locking {
 
-// Set the protocol
-const protocol::Protocol RicartAgrawalaExtended::protocol = protocol::RICART_AGRAWALA_EXTENDED;
-
-RicartAgrawalaExtended::RicartAgrawalaExtended()
-    : RicartAgrawala()
-{
-}
-
 RicartAgrawalaExtended::RicartAgrawalaExtended(const fipa::acl::AgentID& self, const std::vector< std::string >& resources)
     : RicartAgrawala(self, resources)
 {
+    setProtocol(protocol::RICART_AGRAWALA_EXTENDED);
 }
 
 void RicartAgrawalaExtended::lock(const std::string& resource, const std::list<AgentID>& agents)

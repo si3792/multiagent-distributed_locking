@@ -12,16 +12,8 @@ using namespace fipa::acl;
 namespace fipa {
 namespace distributed_locking {
 
-// Set the protocol
-const protocol::Protocol SuzukiKasami::protocol = protocol::SUZUKI_KASAMI;
-
-SuzukiKasami::SuzukiKasami()
-    : DLM()
-{
-}
-
 SuzukiKasami::SuzukiKasami(const fipa::acl::AgentID& self, const std::vector< std::string >& resources)
-    : DLM(self, resources)
+    : DLM(protocol::SUZUKI_KASAMI, self, resources)
 {
     // Also hold the token at the beginning for all physically owned resources
     for(unsigned int i = 0; i < resources.size(); i++)
@@ -61,7 +53,7 @@ void SuzukiKasami::lock(const std::string& resource, const std::list<AgentID>& a
 
     using namespace fipa::acl;
     // Send a message to everyone, requesting the lock
-    ACLMessage message = prepareMessage(ACLMessage::REQUEST, protocolTxt[protocol]);
+    ACLMessage message = prepareMessage(ACLMessage::REQUEST, getProtocolName());
     // Our request messages are in the format "RESOURCE_IDENTIFIER\nSEQUENCE_NUMBER"
     message.setContent(resource + "\n" + boost::lexical_cast<std::string>(mLockStates[resource].mRequestNumber[mSelf]));
     // Add receivers
@@ -139,39 +131,36 @@ lock_state::LockState SuzukiKasami::getLockState(const std::string& resource) co
     }
 }
 
-void SuzukiKasami::onIncomingMessage(const fipa::acl::ACLMessage& message)
+bool SuzukiKasami::onIncomingMessage(const fipa::acl::ACLMessage& message)
 {
     // Call base method as required
-    DLM::onIncomingMessage(message);
+    if(DLM::onIncomingMessage(message))
+    {
+        return true;
+    }
 
     // Check if it's the right protocol
-    if(message.getProtocol() != protocolTxt[protocol])
+    if(message.getProtocol() != getProtocolName())
     {
-        return;
-    }
-    using namespace fipa::acl;
-    // Abort if we're not a receiver
-    AgentIDList receivers = message.getAllReceivers();
-    AgentIDList::const_iterator cit = std::find(receivers.begin(), receivers.end(), mSelf);
-    if(cit == receivers.end())
-    {
-        return;
+        return false;
     }
 
+    using namespace fipa::acl;
     // Check message type
-    if(ACLMessage::performativeFromString(message.getPerformative()) == ACLMessage::REQUEST)
+    switch(message.getPerformativeAsEnum())
     {
-        handleIncomingRequest(message);
+        case ACLMessage::REQUEST:
+            handleIncomingRequest(message);
+            return true;
+        case ACLMessage::INFORM:
+            handleIncomingResponse(message);
+            return true;
+        case ACLMessage::FAILURE:
+            handleIncomingFailure(message);
+            return true;
+        default:
+            return false;
     }
-    else if(ACLMessage::performativeFromString(message.getPerformative()) == ACLMessage::INFORM)
-    {
-        handleIncomingResponse(message);
-    }
-    else if(ACLMessage::performativeFromString(message.getPerformative()) == ACLMessage::FAILURE)
-    {
-        handleIncomingFailure(message);
-    }
-    // We ignore other performatives, as they are not part of our protocol.
 }
 
 void SuzukiKasami::handleIncomingRequest(const fipa::acl::ACLMessage& message)
@@ -351,7 +340,7 @@ void SuzukiKasami::sendToken(const fipa::acl::AgentID& receiver, const std::stri
     mLockStates[resource].mHoldingToken = false;
 
     using namespace fipa::acl;
-    ACLMessage tokenMessage = prepareMessage(ACLMessage::INFORM, protocolTxt[protocol]);
+    ACLMessage tokenMessage = prepareMessage(ACLMessage::INFORM, getProtocolName());
     tokenMessage.addReceiver(receiver);
     tokenMessage.setConversationID(conversationID);
 
