@@ -16,7 +16,7 @@ RicartAgrawala::RicartAgrawala(const fipa::acl::AgentID& self, const std::vector
 {
 }
 
-void RicartAgrawala::lock(const std::string& resource, const std::list<AgentID>& agents)
+void RicartAgrawala::lock(const std::string& resource, const AgentIDList& agents)
 {
     if(!hasKnownOwner(resource))
     {
@@ -43,7 +43,7 @@ void RicartAgrawala::lock(const std::string& resource, const std::list<AgentID>&
     base::Time time = base::Time::now();
     message.setContent(time.toString() + "\n" + resource);
     // Add sender and receivers
-    for(std::list<AgentID>::const_iterator it = agents.begin(); it != agents.end(); it++)
+    for(AgentIDList::const_iterator it = agents.begin(); it != agents.end(); it++)
     {
         message.addReceiver(*it);
     }
@@ -53,9 +53,7 @@ void RicartAgrawala::lock(const std::string& resource, const std::list<AgentID>&
 
     // Change internal state
     mLockStates[resource].mCommunicationPartners = agents;
-    // Sort agents
-    mLockStates[resource].mCommunicationPartners.sort();
-
+    mLockStates[resource].sort();
     mLockStates[resource].mResponded.clear();
     mLockStates[resource].mState = lock_state::INTERESTED;
     mLockStates[resource].mInterestTime = time;
@@ -63,6 +61,19 @@ void RicartAgrawala::lock(const std::string& resource, const std::list<AgentID>&
     // Now a response from each agent must be received before we can enter the critical section
     LOG_DEBUG_S << "'" << mSelf.getName() << "' mark INTERESTED for resource '" << resource << "'";
 }
+
+void RicartAgrawala::ResourceLockState::sort()
+{
+    // Sort agents
+    std::sort(mCommunicationPartners.begin(), mCommunicationPartners.end());
+    std::sort(mResponded.begin(), mResponded.end());
+}
+
+void RicartAgrawala::ResourceLockState::removeCommunicationPartner(const fipa::acl::AgentID& agent)
+{
+    mCommunicationPartners.erase(std::remove(mCommunicationPartners.begin(), mCommunicationPartners.end(), agent), mCommunicationPartners.end());
+}
+
 
 void RicartAgrawala::unlock(const std::string& resource)
 {
@@ -184,7 +195,7 @@ void RicartAgrawala::handleIncomingResponse(const fipa::acl::ACLMessage& message
     // Save that the sender responded
     addRespondedAgent(message.getSender(), resource);
     // Sort agents who responded
-    mLockStates[resource].mResponded.sort();
+    mLockStates[resource].sort();
 
     // We have got the lock, if all agents responded
     if(mLockStates[resource].mCommunicationPartners == mLockStates[resource].mResponded)
@@ -255,7 +266,7 @@ void RicartAgrawala::handleIncomingFailure(const std::string& resource, const fi
     else
     {
         // The agent was not important, we just have to remove it from the list of communication partners, as we won't get a response from it
-        mLockStates[resource].mCommunicationPartners.remove(intendedReceiver);
+        mLockStates[resource].removeCommunicationPartner(intendedReceiver);
 
         LOG_DEBUG_S << "'" << mSelf.getName()  << "' can ignore failed agent '" << intendedReceiver.getName()
             << "' since we never received a response regarding resource: '" << resource << "'";

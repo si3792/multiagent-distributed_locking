@@ -138,7 +138,7 @@ public:
     /**
      * Tries to lock a resource. Subsequently, isLocked() must be called to check the status.
      */
-    virtual void lock(const std::string& resource, const std::list<fipa::acl::AgentID>& agents);
+    virtual void lock(const std::string& resource, const fipa::acl::AgentIDList& agents);
 
     /**
      * Unlocks a resource, that should have been locked before.
@@ -166,7 +166,7 @@ public:
     /**
      * Discover a resource from a set of given agents
      */
-    void discover(const std::string& resource, const std::list<fipa::acl::AgentID>& agents);
+    void discover(const std::string& resource, const fipa::acl::AgentIDList& agents);
 
     /**
      * Check if the owner of the given resource is known

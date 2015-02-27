@@ -21,6 +21,7 @@ BOOST_AUTO_TEST_SUITE(suzuki_kasami)
 BOOST_AUTO_TEST_CASE(test_from_ruby_script)
 {
     BOOST_TEST_MESSAGE("suzuki_kasami/test_from_ruby_script");
+    fipa::acl::StateMachineFactory::setProtocolResourceDir( getProtocolPath() );
 
     // Create 3 Agents
     AgentID a1 ("agent1"), a2 ("agent2"), a3 ("agent3");
@@ -35,7 +36,10 @@ BOOST_AUTO_TEST_CASE(test_from_ruby_script)
     DLM::Ptr dlm2 = DLM::create(protocol::SUZUKI_KASAMI, a2, std::vector<std::string>());
     DLM::Ptr dlm3 = DLM::create(protocol::SUZUKI_KASAMI, a3, std::vector<std::string>());
 
-    // Now we lock
+    dlm1->discover(rsc1,  boost::assign::list_of(a2)(a3));
+    forwardAllMessages(boost::assign::list_of(dlm1)(dlm2)(dlm3));
+
+    // Now A1 locks
     dlm1->lock(rsc1, boost::assign::list_of(a2)(a3));
     forwardAllMessages(boost::assign::list_of(dlm1)(dlm2)(dlm3));
 
@@ -43,10 +47,21 @@ BOOST_AUTO_TEST_CASE(test_from_ruby_script)
     BOOST_CHECK(dlm1->getLockState(rsc1) == lock_state::LOCKED);
 
     // AgentID two tries to lock
+    // Need to perform discovery first, since agent1 did not sent any messages
+    BOOST_REQUIRE_THROW(dlm2->lock(rsc1, boost::assign::list_of(a1)(a3)), std::invalid_argument);
+
+    dlm2->discover(rsc1, boost::assign::list_of(a1)(a3));
+    forwardAllMessages(boost::assign::list_of(dlm1)(dlm2)(dlm3));
+    forwardAllMessages(boost::assign::list_of(dlm1)(dlm2)(dlm3));
+
+    // A2 tries to lock
     dlm2->lock(rsc1, boost::assign::list_of(a1)(a3));
     forwardAllMessages(boost::assign::list_of(dlm2)(dlm1)(dlm3));
-    // AgentID 1 release
+    forwardAllMessages(boost::assign::list_of(dlm1)(dlm2)(dlm3));
+
+    // A1 releases
     dlm1->unlock(rsc1);
+    forwardAllMessages(boost::assign::list_of(dlm1)(dlm2)(dlm3));
     forwardAllMessages(boost::assign::list_of(dlm1)(dlm2)(dlm3));
 
     // Check it is being locked by a2 now
@@ -55,6 +70,7 @@ BOOST_AUTO_TEST_CASE(test_from_ruby_script)
     // A3 locks, sleep, A1 locks
     dlm3->lock(rsc1, boost::assign::list_of(a1)(a2));
     forwardAllMessages(boost::assign::list_of(dlm3)(dlm2)(dlm1));
+
     dlm1->lock(rsc1, boost::assign::list_of(a2)(a3));
     forwardAllMessages(boost::assign::list_of(dlm1)(dlm2)(dlm3));
     
@@ -63,19 +79,16 @@ BOOST_AUTO_TEST_CASE(test_from_ruby_script)
     forwardAllMessages(boost::assign::list_of(dlm2)(dlm1)(dlm3));
     BOOST_CHECK(dlm2->getLockState(rsc1) == lock_state::NOT_INTERESTED);
     
-    // Since the algorithms is not fair and a1 comes first in a2's list
-    // he gets the token first.
-    // Check it is being locked by a1 now
-    BOOST_CHECK(dlm1->getLockState(rsc1) == lock_state::LOCKED);
-    // AgentID 1 releasese
-    dlm1->unlock(rsc1);
+    BOOST_CHECK(dlm3->getLockState(rsc1) == lock_state::LOCKED);
+    // A3 release
+    dlm3->unlock(rsc1);
     forwardAllMessages(boost::assign::list_of(dlm1)(dlm2)(dlm3));
 
-    // Check it is being locked by a3 now
-    BOOST_CHECK(dlm3->getLockState(rsc1) == lock_state::LOCKED);
+    // Check it is being locked by A1 now
+    BOOST_CHECK(dlm1->getLockState(rsc1) == lock_state::LOCKED);
 
-    // AgentID 3 release
-    dlm3->unlock(rsc1);
+    // A1 release
+    dlm1->unlock(rsc1);
     forwardAllMessages(boost::assign::list_of(dlm3)(dlm2)(dlm1));    
 
     // Check no one is interested any more
@@ -87,9 +100,11 @@ BOOST_AUTO_TEST_CASE(test_from_ruby_script)
 /**
  * Simple test with 3 agents, where a1 requests, obtains, and releases the lock for a resource.
  */
-BOOST_AUTO_TEST_CASE(suzuki_kasami_basic_hold_and_release)
+BOOST_AUTO_TEST_CASE(basic_hold_and_release)
 {
-    std::cout << "suzuki_kasami_basic_hold_and_release" << std::endl;
+    BOOST_TEST_MESSAGE("suzuki_kasami/basic_hold_and_release");
+    fipa::acl::StateMachineFactory::setProtocolResourceDir( getProtocolPath() );
+
     // Create 3 Agents
     AgentID a1 ("agent1"), a2 ("agent2"), a3 ("agent3");
     // Define critical resource
@@ -106,16 +121,23 @@ BOOST_AUTO_TEST_CASE(suzuki_kasami_basic_hold_and_release)
     // dlm1 should not be interested in the resource.
     BOOST_CHECK(dlm1->getLockState(rsc1) == lock_state::NOT_INTERESTED);
 
+    dlm1->discover(rsc1, boost::assign::list_of(a2)(a3));
+    forwardAllMessages(boost::assign::list_of(dlm1)(dlm2)(dlm3));
+    forwardAllMessages(boost::assign::list_of(dlm1)(dlm2)(dlm3));
+
     // Let dlm1 lock rsc1
     dlm1->lock(rsc1, boost::assign::list_of(a2)(a3));
     // He should be INTERESTED now
     BOOST_CHECK(dlm1->getLockState(rsc1) == lock_state::INTERESTED);
-    forwardAllMessages(boost::assign::list_of(dlm1)(dlm2)(dlm3));
 
+    forwardAllMessages(boost::assign::list_of(dlm1)(dlm2)(dlm3));
+    forwardAllMessages(boost::assign::list_of(dlm1)(dlm2)(dlm3));
+    forwardAllMessages(boost::assign::list_of(dlm1)(dlm2)(dlm3));
     // Now, agent1 should hold the lock
     BOOST_CHECK(dlm1->getLockState(rsc1) == lock_state::LOCKED);
 
-    // We release the lock and check it has been released
+    // We release the lock and check it has been released, though keeping the
+    // token since there are not interested parties
     dlm1->unlock(rsc1);
     BOOST_CHECK(dlm1->getLockState(rsc1) == lock_state::NOT_INTERESTED);
     forwardAllMessages(boost::assign::list_of(dlm1)(dlm2)(dlm3));
@@ -137,6 +159,7 @@ BOOST_AUTO_TEST_CASE(suzuki_kasami_basic_hold_and_release)
 BOOST_AUTO_TEST_CASE(two_agents_conflict)
 {
     BOOST_TEST_MESSAGE("suzuki_kasami/two_agents_conflict");
+    fipa::acl::StateMachineFactory::setProtocolResourceDir( getProtocolPath() );
 
     // Create 2 Agents
     AgentID a1 ("agent1"), a2 ("agent2");
@@ -150,12 +173,19 @@ BOOST_AUTO_TEST_CASE(two_agents_conflict)
     DLM::Ptr dlm1 = DLM::create(protocol::SUZUKI_KASAMI, a1, rscs);
     DLM::Ptr dlm2 = DLM::create(protocol::SUZUKI_KASAMI, a2, std::vector<std::string>());
     
+    dlm1->discover(rsc1, boost::assign::list_of(a2));
+    forwardAllMessages(boost::assign::list_of(dlm1)(dlm2));
+
     // Let dlm1 lock rsc1
     dlm1->lock(rsc1, boost::assign::list_of(a2));
     // Now, agent1 should hold the lock
     BOOST_CHECK(dlm1->getLockState(rsc1) == lock_state::LOCKED);
     forwardAllMessages(boost::assign::list_of(dlm1)(dlm2));
     
+    dlm2->discover(rsc1, boost::assign::list_of(a1));
+    forwardAllMessages(boost::assign::list_of(dlm1)(dlm2));
+    forwardAllMessages(boost::assign::list_of(dlm1)(dlm2));
+
     // Now a2 tries to lock the same resource
     dlm2->lock(rsc1, boost::assign::list_of(a1));
     forwardAllMessages(boost::assign::list_of(dlm2)(dlm1));

@@ -96,7 +96,7 @@ bool DLM::hasOutgoingMessages() const
     return mOutgoingMessages.size() != 0;
 }
 
-void DLM::lock(const std::string& resource, const std::list<fipa::acl::AgentID >& agents)
+void DLM::lock(const std::string& resource, const AgentIDList& agents)
 {
     throw std::runtime_error("DLM::lock not implemented");
 }
@@ -152,7 +152,7 @@ bool DLM::onIncomingMessage(const acl::ACLMessage& message)
     }
 }
 
-void DLM::discover(const std::string& resource, const std::list<AgentID>& agents)
+void DLM::discover(const std::string& resource, const AgentIDList& agents)
 {
     if(hasKnownOwner(resource))
     {
@@ -166,7 +166,7 @@ void DLM::discover(const std::string& resource, const std::list<AgentID>& agents
         // Our requestOwnerInformation messages are in the format "RESOURCE_IDENTIFIER" --> content language
         message.setContent(resource);
         // Add receivers
-        for(std::list<AgentID>::const_iterator it = agents.begin(); it != agents.end(); it++)
+        for(AgentIDList::const_iterator it = agents.begin(); it != agents.end(); it++)
         {
             message.addReceiver(*it);
         }

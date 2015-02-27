@@ -109,6 +109,8 @@ BOOST_AUTO_TEST_CASE(failing_agent_not_important)
 
     // Now we simulate a failure of dlm1
     dlm2->lock(rsc1, boost::assign::list_of(a1));
+    BOOST_CHECK(dlm2->getLockState(rsc1) != lock_state::LOCKED);
+
     // No message forwarding!
     // There can be multiple outgoing messages!
     while(dlm2->hasOutgoingMessages())

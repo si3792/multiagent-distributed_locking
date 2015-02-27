@@ -20,12 +20,12 @@ void SuzukiKasamiExtended::forwardToken(const std::string& resource)
     if(mOwnedResources[resource] != mSelf.getName())
     {
         // If we're not the resource owner, we forward the token to him.
-        sendToken(fipa::acl::AgentID (mOwnedResources[resource]), resource, mSelf.getName() + "_" + boost::lexical_cast<std::string>(mConversationIDnum++));
+        sendToken(mOwnedResources[resource], resource);
     }
     else
     {
         // If we are the resource owner, we forward normally.
-        fipa::distributed_locking::SuzukiKasami::forwardToken(resource);
+        SuzukiKasami::forwardToken(resource);
     }
 }
 
@@ -34,9 +34,9 @@ bool SuzukiKasamiExtended::isTokenHolder(const std::string& resource, const fipa
     return mTokenHolders[resource] == agent;
 }
 
-void SuzukiKasamiExtended::sendToken(const acl::AgentID& receiver, const std::string& resource, const std::string& conversationID)
+void SuzukiKasamiExtended::sendToken(const acl::AgentID& receiver, const std::string& resource)
 {
-    fipa::distributed_locking::SuzukiKasami::sendToken(receiver, resource, conversationID);
+    fipa::distributed_locking::SuzukiKasami::sendToken(receiver, resource);
     // Additional actions only need to be taken, if we're the resource owner
     if(mOwnedResources[resource] == mSelf.getName())
     {
@@ -47,7 +47,7 @@ void SuzukiKasamiExtended::sendToken(const acl::AgentID& receiver, const std::st
     }
 }
 
-void SuzukiKasamiExtended::handleIncomingResponse(const acl::ACLMessage& message)
+void SuzukiKasamiExtended::handleIncomingToken(const acl::ACLMessage& message)
 {
     // We need to extract the info twice now, this is kinda bad.
     std::string resource;
@@ -65,10 +65,10 @@ void SuzukiKasamiExtended::handleIncomingResponse(const acl::ACLMessage& message
     // We must stop sending PROBEs to the former token owner
     stopRequestingProbes(message.getSender().getName(), resource);
 
-    fipa::distributed_locking::SuzukiKasami::handleIncomingResponse(message);
+    fipa::distributed_locking::SuzukiKasami::handleIncomingToken(message);
 }
 
-void SuzukiKasamiExtended::lock(const std::string& resource, const std::list<AgentID>& agents)
+void SuzukiKasamiExtended::lock(const std::string& resource, const AgentIDList& agents)
 {
     fipa::distributed_locking::SuzukiKasami::lock(resource, agents);
     // We start sending PROBEs to the resource owner

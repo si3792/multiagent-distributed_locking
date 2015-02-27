@@ -26,7 +26,7 @@ public:
     /**
      * Tries to lock a resource. Subsequently, isLocked() must be called to check the status.
      */
-    virtual void lock(const std::string& resource, const std::list<fipa::acl::AgentID>& agents);
+    virtual void lock(const std::string& resource, const fipa::acl::AgentIDList& agents);
     /**
      * Adds an agent to the ones that responded.
      */

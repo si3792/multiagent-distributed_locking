@@ -6,6 +6,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <deque>
+#include <base/Logging.hpp>
 
 using namespace fipa::acl;
 
@@ -22,8 +23,13 @@ SuzukiKasami::SuzukiKasami(const fipa::acl::AgentID& self, const std::vector< st
     }
 }
 
-void SuzukiKasami::lock(const std::string& resource, const std::list<AgentID>& agents)
+void SuzukiKasami::lock(const std::string& resource, const AgentIDList& agents)
 {
+    if(!hasKnownOwner(resource))
+    {
+        throw std::invalid_argument("SuzukiKasami: cannot lock resource '" + resource + "' -- owner is unknown. Perform discovery first");
+    }
+
     lock_state::LockState state = getLockState(resource);
     // Only act we are not holding this resource and not already interested in it
     if(state != lock_state::NOT_INTERESTED)
@@ -40,40 +46,43 @@ void SuzukiKasami::lock(const std::string& resource, const std::list<AgentID>& a
     if(mLockStates[resource].mHoldingToken)
     {
         mLockStates[resource].mState = lock_state::LOCKED;
-        // Let the base class know we obtained the lock
-        lockObtained(resource);
         return;
     }
 
-    // Let the base class know we're requesting the lock BEFORE we actually do that
-    lockRequested(resource, agents);
+    requestToken(resource, agents);
+}
 
-    // Increase our sequence_number
-    mLockStates[resource].mRequestNumber[mSelf]++;
+void SuzukiKasami::requestToken(const std::string& resource, const AgentIDList& agents)
+{
+    // Increase sequence number
+    int requestNumber = mLockStates[resource].mRequestNumber[mSelf] + 1;
 
+    // Request token
     using namespace fipa::acl;
-    // Send a message to everyone, requesting the lock
     ACLMessage message = prepareMessage(ACLMessage::REQUEST, getProtocolName());
+    // TODO: Content Language
     // Our request messages are in the format "RESOURCE_IDENTIFIER\nSEQUENCE_NUMBER"
-    message.setContent(resource + "\n" + boost::lexical_cast<std::string>(mLockStates[resource].mRequestNumber[mSelf]));
+    message.setContent(resource + "\n" + boost::lexical_cast<std::string>(requestNumber));
     // Add receivers
-    for(std::list<AgentID>::const_iterator it = agents.begin(); it != agents.end(); it++)
+    for(AgentIDList::const_iterator it = agents.begin(); it != agents.end(); it++)
     {
         message.addReceiver(*it);
     }
     // Add to outgoing messages
-    mOutgoingMessages.push_back(message);
+    sendMessage(message);
 
     // Change internal state (seq_no already changed)
+    mLockStates[resource].mRequestNumber[mSelf] = requestNumber;
     mLockStates[resource].mCommunicationPartners = agents;
     mLockStates[resource].mState = lock_state::INTERESTED;
-    mLockStates[resource].mConversationID = message.getConversationID();
-
+    mLockStates[resource].mConversationID[mSelf] = message.getConversationID();
     // Now the token must be obtained before we can enter the critical section
+    LOG_DEBUG_S << "'" << mSelf.getName() << "' Token requested for resource '" << resource << "' sequence number: " << mLockStates[resource].mRequestNumber[mSelf];
 }
 
 void SuzukiKasami::unlock(const std::string& resource)
 {
+    LOG_DEBUG_S << "'" << mSelf.getName() << " unlocks resource '" << resource << "'";
     // Only act we are actually holding this resource
     if(getLockState(resource) == lock_state::LOCKED)
     {
@@ -85,9 +94,8 @@ void SuzukiKasami::unlock(const std::string& resource)
 
         // Forward the token
         forwardToken(resource);
-
-        // Let the base class know we released the lock
-        lockReleased(resource);
+    } else{
+        throw std::invalid_argument("SuzukiKasami::unlock: resource '" + resource + "' is not locked");
     }
 }
 
@@ -113,7 +121,11 @@ void SuzukiKasami::forwardToken(const std::string& resource)
     {
         AgentID agent = mLockStates[resource].mToken.mQueue.front();
         mLockStates[resource].mToken.mQueue.pop_front();
-        sendToken(agent, resource, mSelf.getName() + "_" + boost::lexical_cast<std::string>(mConversationIDnum++));
+
+        LOG_DEBUG_S << "Pending request, forward token to " << agent.getName();
+        sendToken(agent, resource);
+    } else {
+        LOG_DEBUG_S << "'" << mSelf.getName() << "' No pending requests";
     }
     // Else keep token
 }
@@ -150,12 +162,15 @@ bool SuzukiKasami::onIncomingMessage(const fipa::acl::ACLMessage& message)
     switch(message.getPerformativeAsEnum())
     {
         case ACLMessage::REQUEST:
-            handleIncomingRequest(message);
+            LOG_DEBUG_S << "Incoming Token Request";
+            handleIncomingTokenRequest(message);
             return true;
-        case ACLMessage::INFORM:
-            handleIncomingResponse(message);
+        case ACLMessage::PROPAGATE:
+            LOG_DEBUG_S << "Incoming Token";
+            handleIncomingToken(message);
             return true;
         case ACLMessage::FAILURE:
+            LOG_DEBUG_S << "Incoming Failure Message";
             handleIncomingFailure(message);
             return true;
         default:
@@ -163,30 +178,73 @@ bool SuzukiKasami::onIncomingMessage(const fipa::acl::ACLMessage& message)
     }
 }
 
-void SuzukiKasami::handleIncomingRequest(const fipa::acl::ACLMessage& message)
+void SuzukiKasami::handleIncomingTokenRequest(const fipa::acl::ACLMessage& message)
 {
     // Extract information
     std::string resource;
-    int sequence_number;
-    extractInformation(message, resource, sequence_number);
+    int sequenceNumber;
+    extractInformation(message, resource, sequenceNumber);
     fipa::acl::AgentID agent = message.getSender();
 
-    // Update our request number if necessary
-    if(mLockStates[resource].mRequestNumber[agent] < sequence_number)
+    // Update our request state
+    std::map<fipa::acl::AgentID, int>::const_iterator cit = mLockStates[resource].mRequestNumber.find(agent);
+    if(cit != mLockStates[resource].mRequestNumber.end())
     {
-        mLockStates[resource].mRequestNumber[agent] = sequence_number;
+        if(mLockStates[resource].mRequestNumber[agent] < sequenceNumber)
+        {
+            mLockStates[resource].mRequestNumber[agent] = sequenceNumber;
+            mLockStates[resource].mConversationID[agent] = message.getConversationID();
+        } else {
+            LOG_INFO_S << "'" << mSelf.getName() << "' received an outdated token request from '" << agent.getName() << "'";
+            return;
+        }
+    } else {
+        LOG_DEBUG_S << "'" << mSelf.getName() << "' registering request of '" << agent.getName() << "' for resource '" << resource << "' with conversation id: " << message.getConversationID();
+        mLockStates[resource].mRequestNumber[agent] = sequenceNumber;
+        mLockStates[resource].mConversationID[agent] = message.getConversationID();
     }
 
-    // If we hold the token && are not holding the lock && the sequence_number
+    // If we hold the token && are not holding the lock && the sequenceNumber
     // indicates an outstanding request: we send the token.
-    if(mLockStates[resource].mHoldingToken && getLockState(resource) != lock_state::LOCKED
-        && mLockStates[resource].mRequestNumber[agent] == mLockStates[resource].mToken.mLastRequestNumber[agent] + 1)
+    if(mLockStates[resource].mHoldingToken)
     {
-        sendToken(agent, resource, message.getConversationID());
+        if(getLockState(resource) == lock_state::LOCKED)
+        {
+            LOG_DEBUG_S << "'" << mSelf.getName() << "' resource is locked";
+        } else if(hasOutstandingRequest(resource, agent))
+        {
+            LOG_DEBUG_S << "'" << mSelf.getName() << "' agent '" << agent.getName() << "' has outstanding request";
+            sendToken(agent, resource);
+            return;
+        } else {
+            LOG_DEBUG_S << "'" << mSelf.getName() << "' agent '" << agent.getName() << "' has no outstanding request";
+        }
+
+        updateToken(resource, agent, sequenceNumber);
+
+    } else {
+        LOG_DEBUG_S << "'" << mSelf.getName() << "' not holding the token";
     }
 }
 
-void SuzukiKasami::handleIncomingResponse(const fipa::acl::ACLMessage& message)
+bool SuzukiKasami::hasOutstandingRequest(const std::string& resource, const fipa::acl::AgentID& agent)
+{
+    int currentRequestNumber = mLockStates[resource].mRequestNumber[agent];
+    int lastRequestNumber = mLockStates[resource].mToken.mLastRequestNumber[agent];
+
+    LOG_DEBUG_S << "'" << mSelf.getName() << "' resource: '" << resource << "', agent: '" << agent.getName() << "', currentRequestNumber: " << currentRequestNumber << ", lastRequestNumber: " << lastRequestNumber;
+    return currentRequestNumber == lastRequestNumber + 1;
+}
+
+
+
+void SuzukiKasami::updateToken(const std::string& resource, const fipa::acl::AgentID& requestor, int sequenceNumber)
+{
+    mLockStates[resource].mToken.mQueue.push_back(requestor);
+    mLockStates[resource].mToken.mLastRequestNumber[requestor] = sequenceNumber;
+}
+
+void SuzukiKasami::handleIncomingToken(const fipa::acl::ACLMessage& message)
 {
     // If we get a response, that likely means, we are interested in a resource
     // Extract information
@@ -207,9 +265,6 @@ void SuzukiKasami::handleIncomingResponse(const fipa::acl::ACLMessage& message)
     }
     // Now we can lock the resource
     mLockStates[resource].mState = lock_state::LOCKED;
-
-    // Let the base class know we obtained the lock
-    lockObtained(resource);
 }
 
 void SuzukiKasami::handleIncomingFailure(const fipa::acl::ACLMessage& message)
@@ -217,12 +272,19 @@ void SuzukiKasami::handleIncomingFailure(const fipa::acl::ACLMessage& message)
     // First determine the affected resource from the conversation id.
     std::string conversationID = message.getConversationID();
     std::string resource;
-    for(std::map<std::string, ResourceLockState>::const_iterator it = mLockStates.begin(); it != mLockStates.end(); it++)
+
+    std::map<std::string, ResourceLockState>::const_iterator it = mLockStates.begin();
+    for(; it != mLockStates.end(); ++it)
     {
-        if(it->second.mConversationID == conversationID)
+        const ResourceLockState& lockState = it->second;
+        std::map<fipa::acl::AgentID, std::string>::const_iterator cit = lockState.mConversationID.begin();
+        for(; cit != lockState.mConversationID.end(); ++cit)
         {
-            resource = it->first;
-            break;
+            if(cit->second == conversationID)
+            {
+                resource = it->first;
+                break;
+            }
         }
     }
 
@@ -274,15 +336,13 @@ void SuzukiKasami::handleIncomingFailure(const std::string& resource, const Agen
         {
             // Otherwise we can lock the resource
             mLockStates[resource].mState = lock_state::LOCKED;
-            // Let the base class know we obtained the lock
-            lockObtained(resource);
         }
         // Otherwise somebody will foward the token to us at some point. (else block)
     }
     else
     {
         // The agent was not important (for us), we have to remove it from the list of communication partners, as we won't get a response from it
-        mLockStates[resource].mCommunicationPartners.remove(intendedReceiver);
+        mLockStates[resource].removeCommunicationPartner(intendedReceiver);
         // We also have to remove his requestNumber(s) and remove him from the queue (relevant if we own the token)
         mLockStates[resource].mRequestNumber.erase(intendedReceiver);
         mLockStates[resource].mToken.mLastRequestNumber.erase(intendedReceiver);
@@ -334,26 +394,33 @@ void SuzukiKasami::extractInformation(const acl::ACLMessage& message, std::strin
     // archive and stream closed when destructors are called
 }
 
-void SuzukiKasami::sendToken(const fipa::acl::AgentID& receiver, const std::string& resource, const std::string& conversationID)
+void SuzukiKasami::sendToken(const fipa::acl::AgentID& receiver, const std::string& resource)
 {
     // We must unset holdingToken
     mLockStates[resource].mHoldingToken = false;
 
     using namespace fipa::acl;
-    ACLMessage tokenMessage = prepareMessage(ACLMessage::INFORM, getProtocolName());
+    ACLMessage tokenMessage = prepareMessage(ACLMessage::PROPAGATE, getProtocolName());
     tokenMessage.addReceiver(receiver);
-    tokenMessage.setConversationID(conversationID);
+    tokenMessage.setConversationID(mLockStates[resource].mConversationID[receiver]);
 
     // Our response messages are in the format "BOOST_ARCHIVE(RESOURCE_IDENTIFIER, TOKEN)"
     std::stringstream ss;
     // save data to archive
-    boost::archive::text_oarchive oa(ss);
     // write class instance to archive
+    boost::archive::text_oarchive oa(ss);
     oa << resource;
-    oa << mLockStates[resource].mToken;
+    Token token = mLockStates[resource].mToken;
+    oa << token;
     tokenMessage.setContent(ss.str());
+    tokenMessage.setLanguage(token.getTypeName());
 
-    mOutgoingMessages.push_back(tokenMessage);
+    sendMessage(tokenMessage);
+}
+
+void SuzukiKasami::ResourceLockState::removeCommunicationPartner(const fipa::acl::AgentID& agent)
+{
+    std::remove(mCommunicationPartners.begin(), mCommunicationPartners.end(), agent);
 }
 
 } // namespace distributed_locking

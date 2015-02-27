@@ -31,15 +31,15 @@ public:
     /**
      * Send the token to the receiver and sends PROBEs if neccesary.
      */
-    virtual void sendToken(const fipa::acl::AgentID& receiver, const std::string& resource, const std::string& conversationID);
+    virtual void sendToken(const fipa::acl::AgentID& receiver, const std::string& resource);
     /**
      * Handles an incoming response
      */
-    virtual void handleIncomingResponse(const fipa::acl::ACLMessage& message);
+    virtual void handleIncomingToken(const fipa::acl::ACLMessage& message);
     /**
      * Tries to lock a resource. Subsequently, isLocked() must be called to check the status.
      */
-    virtual void lock(const std::string& resource, const std::list<fipa::acl::AgentID>& agents);
+    virtual void lock(const std::string& resource, const fipa::acl::AgentIDList& agents);
     
 private:
     // The (logical) token holders of the owned resources. Maps resource->agent.

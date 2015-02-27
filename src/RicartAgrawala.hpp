@@ -13,6 +13,8 @@ namespace distributed_locking {
  */
 class RicartAgrawala : public DLM
 {
+    friend class ResourceLockState;
+
 public:
     /**
      * Constructor
@@ -22,7 +24,7 @@ public:
     /**
      * Tries to lock a resource. Subsequently, isLocked() must be called to check the status.
      */
-    virtual void lock(const std::string& resource, const std::list<fipa::acl::AgentID>& agents);
+    virtual void lock(const std::string& resource, const fipa::acl::AgentIDList& agents);
     /**
      * Unlocks a resource, that must have been locked before
      */
@@ -50,9 +52,9 @@ protected:
     struct ResourceLockState
     {
         // Everyone to inform when locking
-        std::list<fipa::acl::AgentID> mCommunicationPartners;
+        fipa::acl::AgentIDList mCommunicationPartners;
         // Every agent who responded the query. Has to be reset in lock().
-        std::list<fipa::acl::AgentID> mResponded;
+        fipa::acl::AgentIDList mResponded;
         // Messages to be sent later, by leaving the associated critical resource
         std::list<fipa::acl::ACLMessage> mDeferredMessages;
         // The lock state, initially not interested (=0)
@@ -61,6 +63,9 @@ protected:
         base::Time mInterestTime;
         // The conversationID, which is relevant if we're interested and get a failure message back
         std::string mConversationID;
+
+        void sort();
+        void removeCommunicationPartner(const fipa::acl::AgentID& agent);
     };
     
     // All resources mapped to the their ResourceLockStates
