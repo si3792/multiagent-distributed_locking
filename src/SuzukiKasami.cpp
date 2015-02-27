@@ -402,7 +402,17 @@ void SuzukiKasami::sendToken(const fipa::acl::AgentID& receiver, const std::stri
     using namespace fipa::acl;
     ACLMessage tokenMessage = prepareMessage(ACLMessage::PROPAGATE, getProtocolName());
     tokenMessage.addReceiver(receiver);
-    tokenMessage.setConversationID(mLockStates[resource].mConversationID[receiver]);
+    std::string conversationID = mLockStates[resource].mConversationID[receiver];
+    if(conversationID.empty())
+    {
+        LOG_INFO_S << "'" << mSelf.getName() + "' returning token to owner '" + receiver.getName() + "' -- though not requested";
+        // continue in this conversation
+        conversationID = mLockStates[resource].mConversationID[mSelf];
+    } else {
+        LOG_INFO_S << "'" << mSelf.getName() + "' returning token to owner '" + receiver.getName() + "' -- owner requested return";
+    }
+
+    tokenMessage.setConversationID(conversationID);
 
     // Our response messages are in the format "BOOST_ARCHIVE(RESOURCE_IDENTIFIER, TOKEN)"
     std::stringstream ss;
@@ -420,7 +430,7 @@ void SuzukiKasami::sendToken(const fipa::acl::AgentID& receiver, const std::stri
 
 void SuzukiKasami::ResourceLockState::removeCommunicationPartner(const fipa::acl::AgentID& agent)
 {
-    std::remove(mCommunicationPartners.begin(), mCommunicationPartners.end(), agent);
+    mCommunicationPartners.erase(std::remove(mCommunicationPartners.begin(), mCommunicationPartners.end(), agent), mCommunicationPartners.end());
 }
 
 } // namespace distributed_locking
