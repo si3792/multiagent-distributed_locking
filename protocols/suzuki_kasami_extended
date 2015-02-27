@@ -1,0 +1,15 @@
+<scxml version="1.0" initial="1">
+<state id="1">
+        <!-- request the lock by broadcasting-->
+        <transition performative="request" from="initiator" to="all" target="2"/>
+        <transition performative="failure" from=".*" to="initiator" target="2" />
+</state>
+<state id="2">
+        <transition performative="propagate" from="all" to="initiator" target="3"/>
+        <transition performative="failure" from=".*" to="initiator" target="3" />
+</state>
+<state id="3" final="1">
+        <transition performative="propagate" from="initiator" to="all" target="3"/>
+        <transition performative="failure" from=".*" to="initiator" target="3"/>
+</state>
+</scxml>
