@@ -67,8 +67,8 @@ namespace protocol {
     \enum Protocol
     \brief an enum of all the implementations
 */
-enum Protocol { RICART_AGRAWALA = 0, RICART_AGRAWALA_EXTENDED, SUZUKI_KASAMI, SUZUKI_KASAMI_EXTENDED,
-    // Following values only for enumertaing over this enum
+enum Protocol { DLM_DISCOVER = -2, DLM_PROBE = -1, RICART_AGRAWALA = 0, RICART_AGRAWALA_EXTENDED, SUZUKI_KASAMI, SUZUKI_KASAMI_EXTENDED,
+    // Following values only for enumerating over this enum
     PROTOCOL_START = RICART_AGRAWALA, PROTOCOL_END = SUZUKI_KASAMI_EXTENDED
 };
 
@@ -163,6 +163,16 @@ public:
      */
     virtual void agentFailed(const fipa::acl::AgentID& agent);
 
+    /**
+     * Discover a resource from a set of given agents
+     */
+    void discover(const std::string& resource, const std::list<fipa::acl::AgentID>& agents);
+
+    /**
+     * Check if the owner of the given resource is known
+     */
+    bool hasKnownOwner(const std::string& resource) const;
+
 protected:
     /**
      * A structure for organizing sending probe messages
@@ -180,8 +190,6 @@ protected:
 
     // A mapping between protocols and strings
     static std::map<protocol::Protocol, std::string> protocolTxt;
-    // The protocol strings
-    static const std::string probeProtocolStr;
     // The timeout of probe messages
     static const int probeTimeoutSeconds;
 
@@ -216,24 +224,16 @@ protected:
     void setProtocol(protocol::Protocol protocol) { mProtocol = protocol; }
 
     /**
-     * This method MUST be called by implementing subclasses, when the lock is requested.
-     * Like this we can keep track of physically owned resources of other agents.
-     * Ideally, this SHOULD be called BEFORE lock requesting messages are even pushed back
-     * in mOutgoingMessages.
-     */
-    void lockRequested(const std::string& resource, const std::list<fipa::acl::AgentID>& agents);
-
-    /**
      * This method MUST be called by implementing subclasses, when the lock is obtained.
      * Like this we can keep track of logical owners of our own resources.
      */
-    void lockObtained(const std::string& resource);
+    void lockObtained(const std::string& resource, const std::string& conversationId);
 
     /**
      * This method MUST be called by implementing subclasses, when the lock is released.
      * Like this we can keep track of logical owners of our own resources.
      */
-    void lockReleased(const std::string& resource);
+    void lockReleased(const std::string& resource, const std::string& conversationId);
 
     /**
      * Tells the DLM to send PROBE messages to the agent in intervals, and call agentFailed, if it does not respond.
@@ -246,17 +246,19 @@ protected:
     void stopRequestingProbes(const fipa::acl::AgentID& agent, const std::string resourceName);
 
     /**
-     * Check if the owner of the given resource is known
-     */
-    bool hasKnownOwner(const std::string& resource) const;
-
-    /**
      * Prepares an message with this agent as sender -- by default creates an
      * new conversation id
      */
     fipa::acl::ACLMessage prepareMessage(fipa::acl::ACLMessage::Performative performative, const std::string& protocol, const std::string& content = "");
 
+    /**
+     * Send a message
+     */
+    void sendMessage(const fipa::acl::ACLMessage& msg);
+
 private:
+    fipa::acl::ConversationMonitor mConversationMonitor;
+
     /**
      * Send a probe message to the agent
      */

@@ -18,12 +18,12 @@ namespace distributed_locking {
 
 // Initialize the Protocol->string mapping
 std::map<protocol::Protocol, std::string> DLM::protocolTxt = boost::assign::map_list_of
+    (protocol::DLM_DISCOVER, "dlm_discover")
+    (protocol::DLM_PROBE, "dlm_probe")
     (protocol::RICART_AGRAWALA, "ricart_agrawala")
     (protocol::RICART_AGRAWALA_EXTENDED, "ricart_agrawala_extended")
     (protocol::SUZUKI_KASAMI, "suzuki_kasami")
     (protocol::SUZUKI_KASAMI_EXTENDED, "suzuki_kasami_extended");
-
-const std::string DLM::probeProtocolStr = "DISTRIBUTED_LOCKING::PROBE";
 
 // And other stuff
 const int DLM::probeTimeoutSeconds = 5;
@@ -50,10 +50,13 @@ DLM::DLM(protocol::Protocol protocol, const fipa::acl::AgentID& self, const std:
     : mSelf(self)
     , mProtocol(protocol)
     , mConversationIDnum(0)
+    , mConversationMonitor(self)
 {
-    for(unsigned int i = 0; i < resources.size(); i++)
+    std::vector<std::string>::const_iterator cit = resources.begin();
+    for(; cit != resources.end(); ++cit)
     {
-        mOwnedResources[resources[i]] = mSelf.getName();
+        LOG_DEBUG_S << "Register: resource '" << *cit << "' with owner: '" << self.getName() << "'";
+        mOwnedResources[*cit] = mSelf;
     }
 }
 
@@ -115,6 +118,9 @@ void DLM::agentFailed(const fipa::acl::AgentID& agent)
 
 bool DLM::onIncomingMessage(const acl::ACLMessage& message)
 {
+    fipa::acl::ConversationPtr conversation = mConversationMonitor.getOrCreateConversation(message.getConversationID());
+    conversation->update(message);
+
     // Debug:
     if(fipa::acl::ACLMessage::performativeFromString(message.getPerformative()) == fipa::acl::ACLMessage::FAILURE)
     {
@@ -123,7 +129,7 @@ bool DLM::onIncomingMessage(const acl::ACLMessage& message)
 
     // Check if it's the right protocol
     std::string protocol = message.getProtocol();
-    if(protocol != getProtocolName() && protocol != probeProtocolStr)
+    if(protocol != getProtocolName() && protocol != getProtocolTxt(protocol::DLM_PROBE) && protocol != getProtocolTxt(protocol::DLM_DISCOVER))
     {
         return false;
     }
@@ -138,7 +144,7 @@ bool DLM::onIncomingMessage(const acl::ACLMessage& message)
     }
 
     // Handle probe messages if necessary
-    if(protocol == probeProtocolStr)
+    if(protocol == getProtocolTxt(protocol::DLM_PROBE))
     {
         return onIncomingProbeMessage(message);
     } else {
@@ -146,8 +152,33 @@ bool DLM::onIncomingMessage(const acl::ACLMessage& message)
     }
 }
 
+void DLM::discover(const std::string& resource, const std::list<AgentID>& agents)
+{
+    if(hasKnownOwner(resource))
+    {
+        return;
+    } else {
+        mOwnedResources[resource] = AgentID();
+        LOG_DEBUG_S << "'" << mSelf.getName() << "' query ownership information on '" << resource << "'";
+        // Otherwise send a broadcast message to get that information
+        using namespace fipa::acl;
+        ACLMessage message = prepareMessage(ACLMessage::QUERY_IF, getProtocolTxt(protocol::DLM_DISCOVER));
+        // Our requestOwnerInformation messages are in the format "RESOURCE_IDENTIFIER" --> content language
+        message.setContent(resource);
+        // Add receivers
+        for(std::list<AgentID>::const_iterator it = agents.begin(); it != agents.end(); it++)
+        {
+            message.addReceiver(*it);
+        }
+
+        // Add to outgoing messages
+        sendMessage(message);
+    }
+}
+
 bool DLM::onIncomingDLMMessage(const acl::ACLMessage& message)
 {
+    LOG_DEBUG_S << "'" << getSelf().getName() << "' Handling message: " << message.toString();
     using namespace fipa::acl;
     switch(message.getPerformativeAsEnum())
     {
@@ -155,17 +186,17 @@ bool DLM::onIncomingDLMMessage(const acl::ACLMessage& message)
         {
             std::string resource = message.getContent();
             // If we are the physical owner of that resource, we reply with that information. Otherwise, we ignore the message
-            if(mOwnedResources[resource] == mSelf.getName())
+            if(mOwnedResources[resource] == mSelf)
             {
                 // By making the reply also a broadcast, we can save messages later, if other agents want to lock the same resource
-                ACLMessage response = prepareMessage(ACLMessage::INFORM, getProtocolName(), resource);
+                ACLMessage response = prepareMessage(ACLMessage::INFORM, getProtocolTxt(protocol::DLM_DISCOVER), resource);
 
                 // Broadcasting to all receivers
                 fipa::acl::AgentIDList receivers = message.getAllReceivers();
                 // remove ourselves..
                 for(AgentIDList::iterator it = receivers.begin(); it != receivers.end(); it++)
                 {
-                    if(*it == mSelf.getName())
+                    if(*it == mSelf)
                     {
                         receivers.erase(it);
                         break;
@@ -179,7 +210,7 @@ bool DLM::onIncomingDLMMessage(const acl::ACLMessage& message)
                 response.setConversationID(message.getConversationID());
 
                 // Add to outgoing messages
-                mOutgoingMessages.push_back(response);
+                sendMessage(response);
             }
         }
         return true;
@@ -241,13 +272,13 @@ bool DLM::onIncomingProbeMessage(const acl::ACLMessage& message)
     {
         LOG_DEBUG_S << "'" << mSelf.getName() << "' received probe request from '" << message.getSender().getName();
         // Answer with CONFIRM:SUCCESS
-        ACLMessage response = prepareMessage(ACLMessage::CONFIRM, probeProtocolStr);
+        ACLMessage response = prepareMessage(ACLMessage::CONFIRM, getProtocolTxt(protocol::DLM_PROBE));
         response.addReceiver(message.getSender());
         // Respond within same conversation
         response.setConversationID(message.getConversationID());
 
         // Add to outgoing messages
-        mOutgoingMessages.push_back(response);
+        sendMessage(response);
     } else if(message.getPerformativeAsEnum() == ACLMessage::CONFIRM)
     {
         LOG_DEBUG_S << "'" << mSelf.getName() << "' received probe reply from '" << message.getSender().getName();
@@ -264,43 +295,20 @@ bool DLM::hasKnownOwner(const std::string& resource) const
     // if we already know the physical owner of that resource, we don't have to do anything
     if(cit !=  mOwnedResources.end() && cit->second != fipa::acl::AgentID())
     {
+        LOG_DEBUG_S << "Found owner: '" << cit->second.getName() << "' for resource '" << resource << "'";
         return true;
     }
     LOG_WARN_S << mSelf.getName() << " did not know the owner of '" << resource << "'";
     return false;
 }
 
-
-void DLM::lockRequested(const std::string& resource, const std::list<fipa::acl::AgentID>& agents)
+void DLM::lockObtained(const std::string& resource, const std::string& conversationId)
 {
-    if(hasKnownOwner(resource))
-    {
-        return;
-    } else {
-        mOwnedResources[resource] = AgentID();
-        LOG_DEBUG_S << "'" << mSelf.getName() << "' query ownership information on '" << resource << "'";
-        // Otherwise send a broadcast message to get that information
-        using namespace fipa::acl;
-        ACLMessage message = prepareMessage(ACLMessage::QUERY_IF, getProtocolName());
-        // Our requestOwnerInformation messages are in the format "RESOURCE_IDENTIFIER"
-        message.setContent(resource);
-        // Add receivers
-        for(std::list<AgentID>::const_iterator it = agents.begin(); it != agents.end(); it++)
-        {
-            message.addReceiver(*it);
-        }
-
-        // Add to outgoing messages
-        mOutgoingMessages.push_back(message);
-    }
-}
-
-void DLM::lockObtained(const std::string& resource)
-{
-    if(mOwnedResources[resource] == mSelf.getName())
+    LOG_DEBUG_S << "CONFIRM that '" << mSelf.getName() << " obtained lock for '" << resource << "'";
+    if(mOwnedResources[resource] == mSelf)
     {
         // If this is our own resource, we can simply set us as the logical owner
-        mLockHolders[resource] = mSelf.getName();
+        mLockHolders[resource] = mSelf;
     } else
     {
         if(!hasKnownOwner(resource))
@@ -313,10 +321,11 @@ void DLM::lockObtained(const std::string& resource)
         using namespace fipa::acl;
         // confirm to owner that the lock has taken by this senders message
         ACLMessage message = prepareMessage(ACLMessage::CONFIRM, getProtocolName(), resource);
+        message.setConversationID(conversationId);
         // send to owner
         message.addReceiver( mOwnedResources[resource] );
         // Add to outgoing messages
-        mOutgoingMessages.push_back(message);
+        sendMessage(message);
     }
 }
 
@@ -333,13 +342,13 @@ fipa::acl::ACLMessage DLM::prepareMessage(fipa::acl::ACLMessage::Performative pe
     return message;
 }
 
-void DLM::lockReleased(const std::string& resource)
+void DLM::lockReleased(const std::string& resource, const std::string& conversationId)
 {
-    if(mOwnedResources[resource] == mSelf.getName())
+    if(mOwnedResources[resource] == mSelf)
     {
         // If this is our own resource, we can simply unset us as the logical owner
         // Only erase if we were the logical owner
-        if(mLockHolders[resource] == mSelf.getName())
+        if(mLockHolders[resource] == mSelf)
         {
             mLockHolders.erase(resource);
         }
@@ -356,8 +365,9 @@ void DLM::lockReleased(const std::string& resource)
         using namespace fipa::acl;
         ACLMessage message = prepareMessage(ACLMessage::DISCONFIRM, getProtocolName(), resource);
         message.addReceiver(mOwnedResources[resource]);
+        message.setConversationID(conversationId);
         // Add to outgoing messages
-        mOutgoingMessages.push_back(message);
+        sendMessage(message);
     }
 }
 
@@ -442,16 +452,23 @@ void DLM::sendProbe(const fipa::acl::AgentID& agent)
     mProbeRunners[agent].mSuccess = false;
 
     using namespace fipa::acl;
-    ACLMessage message = prepareMessage(ACLMessage::REQUEST, probeProtocolStr);
+    ACLMessage message = prepareMessage(ACLMessage::REQUEST, getProtocolTxt(protocol::DLM_PROBE));
     message.addReceiver(agent);
 
     // Add to outgoing messages
-    mOutgoingMessages.push_back(message);
+    sendMessage(message);
 }
 
 protocol::Protocol DLM::getProtocol() const
 {
     return mProtocol;
+}
+
+void DLM::sendMessage(const fipa::acl::ACLMessage& message)
+{
+    fipa::acl::ConversationPtr conversation = mConversationMonitor.getOrCreateConversation(message.getConversationID());
+    conversation->update(message);
+    mOutgoingMessages.push_back(message);
 }
 
 } // namespace distributed_locking

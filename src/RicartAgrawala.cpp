@@ -18,6 +18,11 @@ RicartAgrawala::RicartAgrawala(const fipa::acl::AgentID& self, const std::vector
 
 void RicartAgrawala::lock(const std::string& resource, const std::list<AgentID>& agents)
 {
+    if(!hasKnownOwner(resource))
+    {
+        throw std::invalid_argument("RicartAgrawala: cannot lock resource '" + resource + "' -- owner is unknown. Perform discovery first");
+    }
+
     lock_state::LockState state = getLockState(resource);
     // Only act we are not holding this resource and not already interested in it
     if(state != lock_state::NOT_INTERESTED)
@@ -30,11 +35,9 @@ void RicartAgrawala::lock(const std::string& resource, const std::list<AgentID>&
         return;
     }
 
-    // Let the base class know we're requesting the lock BEFORE we actually do that
-    lockRequested(resource, agents);
-
     using namespace fipa::acl;
-    // Send a message to everyone, requesting the lock
+    // Send a message to everyone, requesting the lock -- creates a  new
+    // conversation
     ACLMessage message = prepareMessage(ACLMessage::REQUEST, getProtocolName());
     // Our request messages are in the format "TIME\nRESOURCE_IDENTIFIER"
     base::Time time = base::Time::now();
@@ -46,7 +49,7 @@ void RicartAgrawala::lock(const std::string& resource, const std::list<AgentID>&
     }
 
     // Add to outgoing messages
-    mOutgoingMessages.push_back(message);
+    sendMessage(message);
 
     // Change internal state
     mLockStates[resource].mCommunicationPartners = agents;
@@ -75,7 +78,7 @@ void RicartAgrawala::unlock(const std::string& resource)
         sendAllDeferredMessages(resource);
 
         // Let the base class know we released the lock
-        lockReleased(resource);
+        lockReleased(resource, mLockStates[resource].mConversationID);
     }
 }
 
@@ -95,6 +98,7 @@ lock_state::LockState RicartAgrawala::getLockState(const std::string& resource) 
 
 bool RicartAgrawala::onIncomingMessage(const fipa::acl::ACLMessage& message)
 {
+    LOG_DEBUG_S << "On incoming message: " << message.toString();
     // Call base method as required
     if( DLM::onIncomingMessage(message) )
     {
@@ -114,7 +118,7 @@ bool RicartAgrawala::onIncomingMessage(const fipa::acl::ACLMessage& message)
         case ACLMessage::REQUEST:
             handleIncomingRequest(message);
             return true;
-        case ACLMessage::INFORM:
+        case ACLMessage::AGREE:
             handleIncomingResponse(message);
             return true;
         case ACLMessage::FAILURE:
@@ -134,9 +138,8 @@ void RicartAgrawala::handleIncomingRequest(const fipa::acl::ACLMessage& message)
     extractInformation(message, otherTime, resource);
 
     // Create a response
-    fipa::acl::ACLMessage response = prepareMessage(ACLMessage::INFORM, getProtocolName());
+    fipa::acl::ACLMessage response = prepareMessage(ACLMessage::AGREE, getProtocolName());
     response.addReceiver(message.getSender());
-
     // Keep the conversation ID
     response.setConversationID(message.getConversationID());
 
@@ -146,7 +149,7 @@ void RicartAgrawala::handleIncomingRequest(const fipa::acl::ACLMessage& message)
     {
         // Our response messages are in the format "TIME\nRESOURCE_IDENTIFIER"
         response.setContent(base::Time::now().toString() +"\n" + resource);
-        mOutgoingMessages.push_back(response);
+        sendMessage(response);
     }
     else if(state == lock_state::INTERESTED && otherTime == mLockStates[resource].mInterestTime)
     {
@@ -189,7 +192,7 @@ void RicartAgrawala::handleIncomingResponse(const fipa::acl::ACLMessage& message
         mLockStates[resource].mState = lock_state::LOCKED;
 
         // Let the base class know we obtained the lock
-        lockObtained(resource);
+        lockObtained(resource, message.getConversationID());
     }
 }
 
@@ -263,7 +266,7 @@ void RicartAgrawala::handleIncomingFailure(const std::string& resource, const fi
             mLockStates[resource].mState = lock_state::LOCKED;
 
             // Let the base class know we obtained the lock
-            lockObtained(resource);
+            lockObtained(resource, mLockStates[resource].mConversationID);
         }
     }
 }
@@ -321,9 +324,10 @@ void RicartAgrawala::sendAllDeferredMessages(const std::string& resource)
         it != mLockStates[resource].mDeferredMessages.end(); it++)
     {
         fipa::acl::ACLMessage msg = *it;
+        LOG_DEBUG_S << "'" << mSelf.getName() << "' sent deferred message '" << msg.toString() << "'";
         // Include timestamp
         msg.setContent(base::Time::now().toString() +"\n" + msg.getContent());
-        mOutgoingMessages.push_back(msg);
+        sendMessage(msg);
     }
     // Clear list
     mLockStates[resource].mDeferredMessages.clear();

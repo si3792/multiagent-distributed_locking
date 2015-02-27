@@ -14,13 +14,16 @@ using namespace fipa;
 using namespace fipa::distributed_locking;
 using namespace fipa::acl;
 
+BOOST_AUTO_TEST_SUITE(ricart_agrawala_extended)
+
 /**
  * Test correct reactions if an agent does not respond PROBE messages.
  *
  */
-BOOST_AUTO_TEST_CASE(ricart_agrawala_extended_non_responding_agent)
+BOOST_AUTO_TEST_CASE(non_responding_agent)
 {
-    std::cout << "ricart_agrawala_extended_non_responding_agent" << std::endl;
+    BOOST_TEST_MESSAGE("ricart_agrawala_extended_non_responding_agent");
+    fipa::acl::StateMachineFactory::setProtocolResourceDir( getProtocolPath() );
 
     // Create 3 Agents
     AgentID a1 ("agent1"), a2 ("agent2"), a3("agent3");
@@ -37,6 +40,13 @@ BOOST_AUTO_TEST_CASE(ricart_agrawala_extended_non_responding_agent)
     DLM::Ptr dlm3 = DLM::create(protocol::RICART_AGRAWALA_EXTENDED, a3, std::vector<std::string>());
 
     // AgentID 3 locks
+    BOOST_REQUIRE_THROW(dlm3->lock(rsc1, boost::assign::list_of(a1)(a2)), std::invalid_argument);
+
+    dlm3->discover(rsc1, boost::assign::list_of(a1)(a2));
+    forwardAllMessages(boost::assign::list_of(dlm3)(dlm2)(dlm1));
+    forwardAllMessages(boost::assign::list_of(dlm3)(dlm2)(dlm1));
+    forwardAllMessages(boost::assign::list_of(dlm3)(dlm2)(dlm1));
+
     dlm3->lock(rsc1, boost::assign::list_of(a1)(a2));
     forwardAllMessages(boost::assign::list_of(dlm3)(dlm2)(dlm1));
     
@@ -90,3 +100,5 @@ BOOST_AUTO_TEST_CASE(ricart_agrawala_extended_non_responding_agent)
     // Calling lock now should trigger an exception
     BOOST_CHECK_THROW(dlm2->lock(rsc1, boost::assign::list_of(a1)), std::runtime_error);
 }
+
+BOOST_AUTO_TEST_SUITE_END()
