@@ -405,11 +405,11 @@ void SuzukiKasami::sendToken(const fipa::acl::AgentID& receiver, const std::stri
     std::string conversationID = mLockStates[resource].mConversationID[receiver];
     if(conversationID.empty())
     {
-        LOG_INFO_S << "'" << mSelf.getName() + "' returning token to owner '" + receiver.getName() + "' -- though not requested";
+        LOG_INFO_S << "'" << mSelf.getName() + "' send token to '" + receiver.getName() + "' -- though not requested";
         // continue in this conversation
         conversationID = mLockStates[resource].mConversationID[mSelf];
     } else {
-        LOG_INFO_S << "'" << mSelf.getName() + "' returning token to owner '" + receiver.getName() + "' -- owner requested return";
+        LOG_INFO_S << "'" << mSelf.getName() + "' send token to '" + receiver.getName() + "' -- token has been requested";
     }
 
     tokenMessage.setConversationID(conversationID);
