@@ -48,7 +48,7 @@ DLM::DLM(protocol::Protocol protocol, const fipa::acl::AgentID& self, const std:
     , mProtocol(protocol)
     , mConversationIDnum(0)
     , mConversationMonitor(self)
-    , mProbeTimeoutInS(5)
+    , mProbeTimeoutInS(3)
 {
     std::vector<std::string>::const_iterator cit = resources.begin();
     for(; cit != resources.end(); ++cit)
