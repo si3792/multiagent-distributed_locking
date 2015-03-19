@@ -18,7 +18,8 @@ void SuzukiKasamiExtended::forwardToken(const std::string& resource)
 {
     if(mOwnedResources[resource] != mSelf)
     {
-        // If we're not the resource owner, we forward the token to him.
+        // If this instance is not the resource owner, forward the token to the
+        // resource owner
         sendToken(mOwnedResources[resource], resource);
     }
     else
