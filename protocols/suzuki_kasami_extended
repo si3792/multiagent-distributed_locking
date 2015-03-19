@@ -9,7 +9,10 @@
         <transition performative="failure" from=".*" to="initiator" target="3" />
 </state>
 <state id="3" final="1">
+        <!-- unlock the resource and return -->
         <transition performative="propagate" from="initiator" to="all" target="3"/>
+        <!-- forward token further -->
+        <transition performative="propagate" from="all" to=".*" target="3"/>
         <transition performative="failure" from=".*" to="initiator" target="3"/>
 </state>
 </scxml>
