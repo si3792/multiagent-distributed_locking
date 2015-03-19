@@ -105,12 +105,12 @@ BOOST_AUTO_TEST_CASE(non_responding_agent)
     forwardAllMessages(boost::assign::list_of(dlm3)(dlm2)(dlm1));
 
     BOOST_REQUIRE(dlm3->getLockState(rsc1) == lock_state::LOCKED);
-    
+
     // AgentID 2 tries to lock
     dlm2->lock(rsc1, boost::assign::list_of(a1)(a3));
     forwardAllMessages(boost::assign::list_of(dlm2)(dlm1)(dlm3));
     forwardAllMessages(boost::assign::list_of(dlm2)(dlm1)(dlm3));
-    
+
     //
     // Now, agent 3 is disconnected from the other agents.
     //
@@ -137,58 +137,58 @@ BOOST_AUTO_TEST_CASE(non_responding_agent)
         outerFailureMsg.setProtocol(msgOut.getProtocol());
         outerFailureMsg.setConversationID(msgOut.getConversationID());
         outerFailureMsg.setContent(innerFailureMsg.toString());
-        
+
         dlm3->onIncomingMessage(outerFailureMsg);
     }
     // This means, agent 3 should mark the resource as UNREACHABLE
     BOOST_CHECK(dlm3->getLockState(rsc1) == lock_state::UNREACHABLE);
 
-
     // Calling lock now should trigger an exception
-    //BOOST_CHECK_THROW(dlm3->lock(rsc1, boost::assign::list_of(a1)), std::runtime_error);
-    //
-    //
-    //// On the other side, both agent 1 and 2 should notice the failure somehow, and agent 1 should forward a new token to agent 2.
-    //// We have to sleep 2x3s (1s more than the threshold) and call the trigger() method again.
-    //for(int i = 0; i < 10; ++i)
-    //{
-    //    BOOST_TEST_MESSAGE("Trigger");
-    //    dlm1->trigger();
-    //    dlm2->trigger();
-    //    forwardAllMessages(boost::assign::list_of(dlm2)(dlm1));
-    //    sleep(1);
-    //}
+    BOOST_CHECK_THROW(dlm3->lock(rsc1, boost::assign::list_of(a1)), std::runtime_error);
 
-    //// A2 should now have obtained the lock
-    //BOOST_CHECK(dlm2->getLockState(rsc1) == lock_state::LOCKED);
-    //
-    //// He unlocks
-    //dlm2->unlock(rsc1);
-    //forwardAllMessages(boost::assign::list_of(dlm2)(dlm1));
-    //
-    //// A1 locks
-    //dlm1->lock(rsc1, boost::assign::list_of(a2));
-    //forwardAllMessages(boost::assign::list_of(dlm1)(dlm2));
-    //
-    //// A2 tries to lock again
-    //dlm2->lock(rsc1, boost::assign::list_of(a1));
-    //forwardAllMessages(boost::assign::list_of(dlm2)(dlm1));
+    // On the other side, both agent 1 and 2 should notice the failure,
+    // and agent 1 should reclaim the token by default
+    // Subsequently it will forward a new token to agent 2.
+    // We have to sleep 2x3s (1s more than the threshold) and call the trigger() method again.
+    for(int i = 0; i < 10; ++i)
+    {
+        BOOST_TEST_MESSAGE("Trigger");
+        dlm1->trigger();
+        dlm2->trigger();
+        forwardAllMessages(boost::assign::list_of(dlm2)(dlm1));
+        sleep(1);
+    }
 
-    //// Now, agent1 dies
-    //for(int i = 0; i < 10; ++i)
-    //{
-    //    BOOST_TEST_MESSAGE("Trigger");
-    //    dlm2->trigger();
-    //    forwardAllMessages(boost::assign::list_of(dlm2));
-    //    sleep(1);
-    //}
-    //dlm2->trigger();
-    //
-    //// a1 was owner of rsc1, so he should be considered important.
-    //// therefore, a2 should mark the resource as unobtainable
-    //BOOST_CHECK(dlm2->getLockState(rsc1) == lock_state::UNREACHABLE);
-    //// Calling lock now should trigger an exception
-    //BOOST_CHECK_THROW(dlm2->lock(rsc1, boost::assign::list_of(a1)), std::runtime_error);
+    // A2 should now have obtained the lock
+    BOOST_CHECK_MESSAGE(dlm2->getLockState(rsc1) == lock_state::LOCKED, "Expected " << lock_state::LOCKED << " but found " << dlm2->getLockState(rsc1));
+
+    // He unlocks
+    dlm2->unlock(rsc1);
+    forwardAllMessages(boost::assign::list_of(dlm2)(dlm1));
+
+    // A1 locks
+    dlm1->lock(rsc1, boost::assign::list_of(a2));
+    forwardAllMessages(boost::assign::list_of(dlm1)(dlm2));
+
+    // A2 tries to lock again
+    dlm2->lock(rsc1, boost::assign::list_of(a1));
+    forwardAllMessages(boost::assign::list_of(dlm2)(dlm1));
+
+    // Now, agent1 dies
+    for(int i = 0; i < 10; ++i)
+    {
+        BOOST_TEST_MESSAGE("Trigger");
+        dlm2->trigger();
+        forwardAllMessages(boost::assign::list_of(dlm2));
+        sleep(1);
+    }
+    dlm2->trigger();
+
+    // a1 was owner of rsc1, so he should be considered important.
+    // therefore, a2 should mark the resource as unobtainable
+    BOOST_CHECK(dlm2->getLockState(rsc1) == lock_state::UNREACHABLE);
+    // Calling lock now should trigger an exception
+    BOOST_CHECK_THROW(dlm2->lock(rsc1, boost::assign::list_of(a1)), std::runtime_error);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
