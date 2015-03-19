@@ -374,6 +374,10 @@ void DLM::lockReleased(const std::string& resource, const std::string& conversat
 void DLM::startRequestingProbes(const fipa::acl::AgentID& agent, const std::string resourceName)
 {
     LOG_DEBUG_S << "'" << mSelf.getName() << "' start probing '" << agent.getName() << " -- resource: " << resourceName;
+    if(agent == mSelf)
+    {
+        throw std::invalid_argument("Agent '" + agent.getName() + "' trying to probe itself");
+    }
     mProbeRunners[agent].mResources.push_back(resourceName);
 }
 
