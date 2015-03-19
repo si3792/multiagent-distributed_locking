@@ -71,8 +71,11 @@ void SuzukiKasamiExtended::handleIncomingToken(const acl::ACLMessage& message)
 void SuzukiKasamiExtended::lock(const std::string& resource, const AgentIDList& agents)
 {
     fipa::distributed_locking::SuzukiKasami::lock(resource, agents);
-    // We start sending PROBEs to the resource owner
-    startRequestingProbes(mOwnedResources[resource], resource);
+    if(mOwnedResources[resource] != mSelf)
+    {
+        // We start sending PROBEs to the resource owner
+        startRequestingProbes(mOwnedResources[resource], resource);
+    }
 }
 
 } // namespace distributed_locking
