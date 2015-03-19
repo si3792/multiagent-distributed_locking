@@ -16,8 +16,7 @@ SuzukiKasamiExtended::SuzukiKasamiExtended(const fipa::acl::AgentID& self, const
 
 void SuzukiKasamiExtended::forwardToken(const std::string& resource)
 {
-
-    if(mOwnedResources[resource] != mSelf.getName())
+    if(mOwnedResources[resource] != mSelf)
     {
         // If we're not the resource owner, we forward the token to him.
         sendToken(mOwnedResources[resource], resource);
@@ -38,7 +37,7 @@ void SuzukiKasamiExtended::sendToken(const acl::AgentID& receiver, const std::st
 {
     fipa::distributed_locking::SuzukiKasami::sendToken(receiver, resource);
     // Additional actions only need to be taken, if we're the resource owner
-    if(mOwnedResources[resource] == mSelf.getName())
+    if(mOwnedResources[resource] == mSelf)
     {
         // After sending the token, we must update mTokenHolders
         mTokenHolders[resource] = receiver.getName();
@@ -57,10 +56,10 @@ void SuzukiKasamiExtended::handleIncomingToken(const acl::ACLMessage& message)
 
     // Before we could possibly forward the token again, we must (if we're the owner update mTokenHolders and)
     // stop sending PROBEs
-    if(mOwnedResources[resource] == mSelf.getName())
+    if(mOwnedResources[resource] == mSelf)
     {
         // We own the token again.
-        mTokenHolders[resource] = mSelf.getName();
+        mTokenHolders[resource] = mSelf;
     }
     // We must stop sending PROBEs to the former token owner
     stopRequestingProbes(message.getSender().getName(), resource);
