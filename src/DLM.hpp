@@ -173,6 +173,17 @@ public:
      */
     bool hasKnownOwner(const std::string& resource) const;
 
+    /**
+     * Set the probe timeout in seconds
+     */
+    void setProbeTimeout(double timeInS);
+
+    /**
+     * Get the probe timeout in seconds
+     * default is 5 seconds
+     */
+    double getProbeTimeout() const { return mProbeTimeoutInS; }
+
 protected:
     /**
      * A structure for organizing sending probe messages
@@ -190,8 +201,6 @@ protected:
 
     // A mapping between protocols and strings
     static std::map<protocol::Protocol, std::string> protocolTxt;
-    // The timeout of probe messages
-    static const int probeTimeoutSeconds;
 
     /**
      * Protected constructor with the agent to manage and a list of physically owned resources.
@@ -258,6 +267,8 @@ protected:
 
 private:
     fipa::acl::ConversationMonitor mConversationMonitor;
+    // The timeout of probe messages in seconds
+    double mProbeTimeoutInS;
 
     /**
      * Send a probe message to the agent

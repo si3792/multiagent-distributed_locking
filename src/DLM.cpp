@@ -25,9 +25,6 @@ std::map<protocol::Protocol, std::string> DLM::protocolTxt = boost::assign::map_
     (protocol::SUZUKI_KASAMI, "suzuki_kasami")
     (protocol::SUZUKI_KASAMI_EXTENDED, "suzuki_kasami_extended");
 
-// And other stuff
-const int DLM::probeTimeoutSeconds = 5;
-
 
 DLM::Ptr DLM::create(fipa::distributed_locking::protocol::Protocol implementation, const fipa::acl::AgentID& self, const std::vector< std::string >& resources)
 {
@@ -51,6 +48,7 @@ DLM::DLM(protocol::Protocol protocol, const fipa::acl::AgentID& self, const std:
     , mProtocol(protocol)
     , mConversationIDnum(0)
     , mConversationMonitor(self)
+    , mProbeTimeoutInS(5)
 {
     std::vector<std::string>::const_iterator cit = resources.begin();
     for(; cit != resources.end(); ++cit)
@@ -414,7 +412,7 @@ void DLM::trigger()
         {
             // If we already sent a probe message, and it is longer ago than the threshold,
             // we need to check for a response
-            if(!runner.mTimeStamp.isNull() && base::Time::now() > runner.mTimeStamp + base::Time::fromSeconds(probeTimeoutSeconds))
+            if(!runner.mTimeStamp.isNull() && base::Time::now() > runner.mTimeStamp + base::Time::fromSeconds(mProbeTimeoutInS))
             {
                 if(runner.mSuccess)
                 {
