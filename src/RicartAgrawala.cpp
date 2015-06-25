@@ -194,16 +194,23 @@ void RicartAgrawala::handleIncomingResponse(const fipa::acl::ACLMessage& message
 
     // Save that the sender responded
     addRespondedAgent(message.getSender(), resource);
-    // Sort agents who responded
-    mLockStates[resource].sort();
 
-    // We have got the lock, if all agents responded
-    if(mLockStates[resource].mCommunicationPartners == mLockStates[resource].mResponded)
+    // Check if we have enough responses, so that we don't sort and compare for each IncomingResponse
+    if(mLockStates[resource].mCommunicationPartners.size() == mLockStates[resource].mResponded.size() )
     {
-        mLockStates[resource].mState = lock_state::LOCKED;
-
-        // Let the base class know we obtained the lock
-        lockObtained(resource, message.getConversationID());
+        // Sort agents who responded
+        mLockStates[resource].sort();
+        if(mLockStates[resource].mCommunicationPartners == mLockStates[resource].mResponded)
+        {
+            mLockStates[resource].mState = lock_state::LOCKED;
+            // Let the base class know we obtained the lock
+            lockObtained(resource, message.getConversationID());
+        }
+        else
+        {
+          // This really shouldn't happen.
+          throw std::runtime_error("RicartAgrawala::handleIncomingResponse received enough responses, but mCommunicationPartners not equal to mResponded");
+        }
     }
 }
 
