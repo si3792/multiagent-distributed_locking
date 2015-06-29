@@ -61,7 +61,7 @@ protected:
     /**
      * Returns a string representation of a LamportTime
      */
-    std::string LamportTimeToString(const LamportTime time);
+    static std::string toString(const LamportTime time);
 
     /**
      * Nested class representing an inner state for a certain resource.

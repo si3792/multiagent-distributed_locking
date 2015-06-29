@@ -74,14 +74,14 @@ BOOST_AUTO_TEST_CASE(failing_of_important_agent)
         outerFailureMsg.setProtocol(msgOut.getProtocol());
         outerFailureMsg.setConversationID(msgOut.getConversationID());
         outerFailureMsg.setContent(innerFailureMsg.toString());
-        
+
         dlm2->onIncomingMessage(outerFailureMsg);
     }
-    
+
     // a1 was owner of rsc1, so he should be considered important.
     // therefore, a2 should mark the resource as unobtainable
     BOOST_CHECK_MESSAGE(dlm2->getLockState(rsc1) == lock_state::UNREACHABLE, "Expected " << lock_state::UNREACHABLE << " vs. " << dlm2->getLockState(rsc1) );
-    
+
     // Calling lock now should trigger an exception
     BOOST_CHECK_THROW(dlm2->lock(rsc1, boost::assign::list_of(a1)), std::runtime_error);
 }
@@ -129,10 +129,10 @@ BOOST_AUTO_TEST_CASE(failing_agent_not_important)
         outerFailureMsg.setProtocol(msgOut.getProtocol());
         outerFailureMsg.setConversationID(msgOut.getConversationID());
         outerFailureMsg.setContent(innerFailureMsg.toString());
-        
+
         dlm2->onIncomingMessage(outerFailureMsg);
     }
-    
+
     // a1 was not owner of rsc1, so he should be considered not important.
     // therefore, a2 should hold the lock now
     BOOST_CHECK(dlm2->getLockState(rsc1) == lock_state::LOCKED);
@@ -376,7 +376,7 @@ BOOST_AUTO_TEST_CASE(same_time_conflict)
     // Send this message to a1
     dlm1->onIncomingMessage(simMsg);
     // Now he shouldn't be interested any more
-    BOOST_CHECK(dlm1->getLockState(rsc1) == lock_state::NOT_INTERESTED);
+    BOOST_CHECK(dlm1->getLockState(rsc1) == lock_state::INTERESTED);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

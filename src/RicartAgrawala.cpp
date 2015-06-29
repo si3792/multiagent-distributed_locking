@@ -2,6 +2,7 @@
 
 #include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string.hpp>
+#include <boost/range/algorithm/lexicographical_compare.hpp>
 #include <string>
 #include <stdexcept>
 #include <base/Logging.hpp>
@@ -15,9 +16,8 @@ namespace distributed_locking {
 
 RicartAgrawala::RicartAgrawala(const fipa::acl::AgentID& self, const std::vector< std::string >& resources)
     : DLM(protocol::RICART_AGRAWALA, self, resources)
+    , mLamportClock(0)
 {
-  // Initialize the clock
-  mLamportClock = 0;
 }
 
 void RicartAgrawala::lock(const std::string& resource, const AgentIDList& agents)
@@ -42,13 +42,13 @@ void RicartAgrawala::lock(const std::string& resource, const AgentIDList& agents
     using namespace fipa::acl;
 
     // Update Clock
-    mLamportClock++;
+    ++mLamportClock;
 
     // Send a message to everyone, requesting the lock -- creates a  new
     // conversation
     ACLMessage message = prepareMessage(ACLMessage::REQUEST, getProtocolName());
     // Our request messages are in the format "LAMPORTTIME\nRESOURCE_IDENTIFIER"
-    message.setContent(LamportTimeToString(mLamportClock) + "\n" + resource);
+    message.setContent(toString(mLamportClock) + "\n" + resource);
     // Add sender and receivers
     for(AgentIDList::const_iterator it = agents.begin(); it != agents.end(); it++)
     {
@@ -153,11 +153,9 @@ void RicartAgrawala::synchronizeLamportClock(const LamportTime otherTime)
     mLamportClock = 1 + std::max(mLamportClock, otherTime);
 }
 
-std::string RicartAgrawala::LamportTimeToString(const LamportTime time)
+std::string RicartAgrawala::toString(const LamportTime time)
 {
-    std::stringstream strstream;
-    strstream << time;
-    return strstream.str();
+    return boost::lexical_cast<std::string>(time);
 }
 
 void RicartAgrawala::handleIncomingRequest(const fipa::acl::ACLMessage& message)
@@ -176,24 +174,22 @@ void RicartAgrawala::handleIncomingRequest(const fipa::acl::ACLMessage& message)
     // Keep the conversation ID
     response.setConversationID(message.getConversationID());
 
-    // We send this message now, if we don't hold the resource and are not interested or have been slower. Otherwise we defer it.
+    // We send this message now, if we don't hold the resource and are not interested or have been slower (Ties in timestamps
+    // are broken my lexicographical compare of the Agent Names). Otherwise we defer it.
     lock_state::LockState state = getLockState(resource);
-    if(state == lock_state::NOT_INTERESTED || (state == lock_state::INTERESTED && otherTime < mLockStates[resource].mInterestTime))
+    if(state == lock_state::NOT_INTERESTED ||
+      (state == lock_state::INTERESTED &&
+      ( otherTime < mLockStates[resource].mInterestTime ||
+      ( otherTime == mLockStates[resource].mInterestTime &&
+        // lexicographical_compare returns true iff 1st argument is less then 2nd.
+        boost::range::lexicographical_compare(message.getSender().getName(), mSelf.getName() )  ))))
     {
         // Update Clock
-        mLamportClock++;
+        ++mLamportClock;
 
         // Our response messages are in the format "TIME\nRESOURCE_IDENTIFIER"
-        response.setContent(LamportTimeToString(mLamportClock) +"\n" + resource);
+        response.setContent(toString(mLamportClock) +"\n" + resource);
         sendMessage(response);
-    }
-    else if(state == lock_state::INTERESTED && otherTime == mLockStates[resource].mInterestTime)
-    {
-        // If it should happen that 2 agents have the same timestamp, the interest is revoked, and they have to call lock() again
-        // The following is nearly identical to unlock(), except that the prerequisite of being LOCKED is not met
-        mLockStates[resource].mState = lock_state::NOT_INTERESTED;
-        // Send all deferred messages for that resource
-        sendAllDeferredMessages(resource);
     }
     else
     {
@@ -374,10 +370,10 @@ void RicartAgrawala::sendAllDeferredMessages(const std::string& resource)
         LOG_DEBUG_S << "'" << mSelf.getName() << "' sent deferred message '" << msg.toString() << "'";
 
         // Update Clock
-        mLamportClock++;
+        ++mLamportClock;
 
         // Include timestamp
-        msg.setContent(LamportTimeToString(mLamportClock) +"\n" + msg.getContent());
+        msg.setContent(toString(mLamportClock) +"\n" + msg.getContent());
         sendMessage(msg);
     }
     // Clear list
