@@ -16,6 +16,7 @@ class RicartAgrawala : public DLM
     friend class ResourceLockState;
 
 public:
+
     /**
      * Constructor
      */
@@ -44,7 +45,24 @@ public:
      */
     virtual void agentFailed(const fipa::acl::AgentID& agentName);
 
+    // A typedef for the Lamport Clock and Timestamps.
+    typedef unsigned long long LamportTime;
+
 protected:
+
+    // Represents the internal Lamport (Logical) clock
+    LamportTime mLamportClock;
+
+    /**
+     * Must be called every time a message from another Agent is received, in order to sync with that Agent's clock
+     */
+    void synchronizeLamportClock(const LamportTime otherTime);
+
+    /**
+     * Returns a string representation of a LamportTime
+     */
+    std::string LamportTimeToString(const LamportTime time);
+
     /**
      * Nested class representing an inner state for a certain resource.
      * It is mapped to its resource name.
@@ -60,14 +78,14 @@ protected:
         // The lock state, initially not interested (=0)
         lock_state::LockState mState;
         // The time we sent our request messages
-        base::Time mInterestTime;
+        LamportTime mInterestTime;
         // The conversationID, which is relevant if we're interested and get a failure message back
         std::string mConversationID;
 
         void sort();
         void removeCommunicationPartner(const fipa::acl::AgentID& agent);
     };
-    
+
     // All resources mapped to the their ResourceLockStates
     std::map<std::string, ResourceLockState> mLockStates;
 
@@ -90,18 +108,18 @@ protected:
     /**
      * Extracts the information from the content and saves it in the passed references
      */
-    void extractInformation(const fipa::acl::ACLMessage& message, base::Time& time, std::string& resource);
+    void extractInformation(const fipa::acl::ACLMessage& message, LamportTime& time, std::string& resource);
     /**
      * Sends all deferred messages for a certain resource by putting them into outgoingMessages
      */
     void sendAllDeferredMessages(const std::string& resource);
-    
+
     /**
      * Adds an agent to the ones that responded. This one-liner is encapsulated in a virtual method,
      * so that the extended algorithm can easily extend the behaviour.
      */
     virtual void addRespondedAgent(const fipa::acl::AgentID& agent, std::string resource);
-    
+
 };
 } // namespace distributed_locking
 } // namespace fipa

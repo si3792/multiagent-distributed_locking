@@ -5,6 +5,8 @@
 #include <string>
 #include <stdexcept>
 #include <base/Logging.hpp>
+#include <stdlib.h>
+#include <sstream>
 
 using namespace fipa::acl;
 
@@ -14,6 +16,8 @@ namespace distributed_locking {
 RicartAgrawala::RicartAgrawala(const fipa::acl::AgentID& self, const std::vector< std::string >& resources)
     : DLM(protocol::RICART_AGRAWALA, self, resources)
 {
+  // Initialize the clock
+  mLamportClock = 0;
 }
 
 void RicartAgrawala::lock(const std::string& resource, const AgentIDList& agents)
@@ -36,12 +40,15 @@ void RicartAgrawala::lock(const std::string& resource, const AgentIDList& agents
     }
 
     using namespace fipa::acl;
+
+    // Update Clock
+    mLamportClock++;
+
     // Send a message to everyone, requesting the lock -- creates a  new
     // conversation
     ACLMessage message = prepareMessage(ACLMessage::REQUEST, getProtocolName());
-    // Our request messages are in the format "TIME\nRESOURCE_IDENTIFIER"
-    base::Time time = base::Time::now();
-    message.setContent(time.toString() + "\n" + resource);
+    // Our request messages are in the format "LAMPORTTIME\nRESOURCE_IDENTIFIER"
+    message.setContent(LamportTimeToString(mLamportClock) + "\n" + resource);
     // Add sender and receivers
     for(AgentIDList::const_iterator it = agents.begin(); it != agents.end(); it++)
     {
@@ -56,7 +63,7 @@ void RicartAgrawala::lock(const std::string& resource, const AgentIDList& agents
     mLockStates[resource].sort();
     mLockStates[resource].mResponded.clear();
     mLockStates[resource].mState = lock_state::INTERESTED;
-    mLockStates[resource].mInterestTime = time;
+    mLockStates[resource].mInterestTime = mLamportClock;
     mLockStates[resource].mConversationID = message.getConversationID();
     // Now a response from each agent must be received before we can enter the critical section
     LOG_DEBUG_S << "'" << mSelf.getName() << "' mark INTERESTED for resource '" << resource << "'";
@@ -141,12 +148,27 @@ bool RicartAgrawala::onIncomingMessage(const fipa::acl::ACLMessage& message)
     }
 }
 
+void RicartAgrawala::synchronizeLamportClock(const LamportTime otherTime)
+{
+    mLamportClock = 1 + std::max(mLamportClock, otherTime);
+}
+
+std::string RicartAgrawala::LamportTimeToString(const LamportTime time)
+{
+    std::stringstream strstream;
+    strstream << time;
+    return strstream.str();
+}
+
 void RicartAgrawala::handleIncomingRequest(const fipa::acl::ACLMessage& message)
 {
     LOG_DEBUG_S << "Handling incoming request";
-    base::Time otherTime;
+    LamportTime otherTime;
     std::string resource;
     extractInformation(message, otherTime, resource);
+
+    // Synchronize internal Lamport Clock with that of the sender
+    synchronizeLamportClock(otherTime);
 
     // Create a response
     fipa::acl::ACLMessage response = prepareMessage(ACLMessage::AGREE, getProtocolName());
@@ -158,8 +180,11 @@ void RicartAgrawala::handleIncomingRequest(const fipa::acl::ACLMessage& message)
     lock_state::LockState state = getLockState(resource);
     if(state == lock_state::NOT_INTERESTED || (state == lock_state::INTERESTED && otherTime < mLockStates[resource].mInterestTime))
     {
+        // Update Clock
+        mLamportClock++;
+
         // Our response messages are in the format "TIME\nRESOURCE_IDENTIFIER"
-        response.setContent(base::Time::now().toString() +"\n" + resource);
+        response.setContent(LamportTimeToString(mLamportClock) +"\n" + resource);
         sendMessage(response);
     }
     else if(state == lock_state::INTERESTED && otherTime == mLockStates[resource].mInterestTime)
@@ -182,9 +207,12 @@ void RicartAgrawala::handleIncomingResponse(const fipa::acl::ACLMessage& message
 {
     LOG_DEBUG_S << "Handling incoming response";
     // If we get a response, that likely means, we are interested in a resource
-    base::Time otherTime;
+    LamportTime otherTime;
     std::string resource;
     extractInformation(message, otherTime, resource);
+
+    // Synchronize internal Lamport Clock with that of the sender
+    synchronizeLamportClock(otherTime);
 
     // A response is only relevant if we're "INTERESTED"
     if(getLockState(resource) != lock_state::INTERESTED)
@@ -318,7 +346,7 @@ void RicartAgrawala::agentFailed(const fipa::acl::AgentID& agent)
     }
 }
 
-void RicartAgrawala::extractInformation(const fipa::acl::ACLMessage& message, base::Time& time, std::string& resource)
+void RicartAgrawala::extractInformation(const fipa::acl::ACLMessage& message, LamportTime& time, std::string& resource)
 {
     // Split by newline
     std::vector<std::string> strs;
@@ -330,10 +358,11 @@ void RicartAgrawala::extractInformation(const fipa::acl::ACLMessage& message, ba
         throw std::runtime_error("RicartAgrawala::extractInformation ACLMessage content malformed: " + s);
     }
     // Save the extracted information in the references
-    time = base::Time::fromString(strs[0]);
+    time = std::strtoul(strs[0].c_str() , NULL, 10);
+
     resource = strs[1];
 
-    LOG_DEBUG_S << "Extracted time: " << time.toString() << " and resource: " << resource;
+    LOG_DEBUG_S << "Extracted time: " << time << " and resource: " << resource;
 }
 
 void RicartAgrawala::sendAllDeferredMessages(const std::string& resource)
@@ -343,8 +372,12 @@ void RicartAgrawala::sendAllDeferredMessages(const std::string& resource)
     {
         fipa::acl::ACLMessage msg = *it;
         LOG_DEBUG_S << "'" << mSelf.getName() << "' sent deferred message '" << msg.toString() << "'";
+
+        // Update Clock
+        mLamportClock++;
+
         // Include timestamp
-        msg.setContent(base::Time::now().toString() +"\n" + msg.getContent());
+        msg.setContent(LamportTimeToString(mLamportClock) +"\n" + msg.getContent());
         sendMessage(msg);
     }
     // Clear list
