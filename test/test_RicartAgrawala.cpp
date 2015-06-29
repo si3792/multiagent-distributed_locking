@@ -375,7 +375,7 @@ BOOST_AUTO_TEST_CASE(same_time_conflict)
 
     // Send this message to a1
     dlm1->onIncomingMessage(simMsg);
-    // Now he shouldn't be interested any more
+    // Now he should be still interested
     BOOST_CHECK(dlm1->getLockState(rsc1) == lock_state::INTERESTED);
 }
 
